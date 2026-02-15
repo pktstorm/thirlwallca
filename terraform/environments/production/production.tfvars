@@ -1,0 +1,6 @@
+aws_region        = "us-east-1"
+project_name      = "thirlwall"
+domain_name       = "thirlwall.ca"
+environment       = "production"
+ec2_instance_type = "t4g.micro"
+ec2_key_name      = "thirlwall-key"

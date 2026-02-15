@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "thirlwall-api"
+version = "0.1.0"
+description = "Backend API for the Thirlwall.ca family ancestry website"
+authors = []
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "*"
+uvicorn = {extras = ["standard"], version = "*"}
+sqlalchemy = {extras = ["asyncio"], version = "*"}
+asyncpg = "*"
+alembic = "*"
+pydantic = "*"
+pydantic-settings = "*"
+python-jose = {extras = ["cryptography"], version = "*"}
+httpx = "*"
+boto3 = "*"
+python-multipart = "*"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+pytest-asyncio = "*"
+ruff = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
