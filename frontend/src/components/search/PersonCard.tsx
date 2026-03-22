@@ -135,7 +135,7 @@ export function PersonCard({ person }: PersonCardProps) {
       {/* Footer */}
       <div className="px-5 py-3 border-t border-sage-100 dark:border-dark-border flex items-center justify-end">
         <Link
-          to="/tree/$personId"
+          to="/person/$personId"
           params={{ personId: person.id }}
           className="text-sm font-medium text-primary hover:text-primary-dark transition-colors flex items-center gap-1"
         >

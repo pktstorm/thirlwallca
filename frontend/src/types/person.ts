@@ -37,6 +37,7 @@ export interface Person {
   militaryService: string | null
   burialLocation: string | null
   notes: string | null
+  birthNotes: string | null
   createdAt: string
   updatedAt: string
 }

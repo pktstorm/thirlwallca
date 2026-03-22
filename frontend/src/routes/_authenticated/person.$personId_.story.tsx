@@ -59,6 +59,7 @@ interface PersonApiResponse {
   military_service: string | null
   burial_location: string | null
   notes: string | null
+  birth_notes: string | null
   created_at: string
   updated_at: string
 }
@@ -108,6 +109,7 @@ function mapApiPerson(data: PersonApiResponse): Person {
     militaryService: data.military_service ?? null,
     burialLocation: data.burial_location ?? null,
     notes: data.notes ?? null,
+    birthNotes: data.birth_notes ?? null,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   }

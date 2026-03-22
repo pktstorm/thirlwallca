@@ -5,5 +5,6 @@ export interface Relationship {
   relationship: "parent_child" | "spouse"
   marriageDate: string | null
   divorceDate: string | null
+  marriagePlaceText: string | null
   notes: string | null
 }

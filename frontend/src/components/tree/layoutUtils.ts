@@ -3,63 +3,233 @@ import type { Node, Edge } from "@xyflow/react"
 
 // --- Constants ---
 
-export const NODE_WIDTH = 220
-export const NODE_HEIGHT = 80
-export const SPOUSE_GAP = 40
-export const TIER_HEIGHT = 200
+/** Width of a single person within a couple node */
+export const PERSON_WIDTH = 180
+/** Width of a couple node (two people side by side) */
+export const COUPLE_NODE_WIDTH = 380
+/** Height of a single person node (solo) */
+export const PERSON_NODE_HEIGHT = 64
+/** Height of a couple node */
+export const COUPLE_NODE_HEIGHT = 64
+/** Vertical spacing between generations */
+export const TIER_HEIGHT = 160
+/** Minimum horizontal gap between sibling nodes in the same tier */
 export const MIN_SIBLING_GAP = 60
-export const FAMILY_GAP = 140
+/** Extra gap between different family units in same tier */
+export const FAMILY_GAP = 80
+/** Width of the trunk bar connecting siblings */
+export const TRUNK_BAR_HEIGHT = 1
 
 // --- Types ---
 
-export type PersonNode = Node<TreeNodeData, "personNode">
+export interface CoupleNodeData extends Record<string, unknown> {
+  /** Primary person (the one with parent-child connections, or leftmost) */
+  primary: TreeNodeData
+  /** Spouse person, if any */
+  spouse: TreeNodeData | null
+  /** Whether this is a couple or solo node */
+  isCouple: boolean
+  /** IDs for click handling */
+  primaryId: string
+  spouseId: string | null
+  /** Direct line flags */
+  primaryIsDirectLine?: boolean
+  spouseIsDirectLine?: boolean
+  primaryIsFocused?: boolean
+  spouseIsFocused?: boolean
+}
 
-export interface EdgeData extends Record<string, unknown> {
+export type CoupleNode = Node<CoupleNodeData, "coupleNode">
+
+export interface TrunkEdgeData extends Record<string, unknown> {
   isDirectLine?: boolean
+  /** IDs of child nodes connected by this trunk */
+  childNodeIds: string[]
+  /** Parent couple node ID */
+  parentNodeId: string
 }
 
-export type TreeEdge = Edge<EdgeData>
+export type TreeEdge = Edge<TrunkEdgeData>
 
-interface LayoutNode {
+// --- Family Unit Grouping ---
+
+export interface FamilyUnit {
+  /** Unique ID for this family unit (couple IDs joined) */
   id: string
-  x: number
-  y: number
+  /** Primary person (has parent connections) */
+  primaryId: string
+  /** Spouse ID if any */
+  spouseId: string | null
+  /** Child person IDs */
+  childIds: string[]
+  /** Generation level (0 = root) */
+  generation: number
 }
 
-// --- Edge partitioning ---
+/**
+ * Group people into family units: a couple (or solo person) + their children.
+ * Each person appears as a "parent" in at most one family unit.
+ * People with no spouse and no children become solo units.
+ */
+export function buildFamilyUnits(
+  nodes: ApiTreeNode[],
+  edges: ApiTreeEdge[],
+): { units: FamilyUnit[]; personToUnit: Map<string, string>; generationMap: Map<string, number> } {
+  const nodeIds = new Set(nodes.map((n) => n.id))
 
-export function partitionEdges(edges: ApiTreeEdge[]) {
-  const parentChildEdges: ApiTreeEdge[] = []
-  const spouseEdges: ApiTreeEdge[] = []
+  // Build relationship maps
+  const parentToChildren = new Map<string, Set<string>>()
+  const childToParents = new Map<string, Set<string>>()
+  const spousePairs: [string, string][] = []
 
   for (const e of edges) {
-    if (e.type === "spouse") {
-      spouseEdges.push(e)
-    } else {
-      parentChildEdges.push(e)
+    if (e.type === "parent_child") {
+      if (!parentToChildren.has(e.source)) parentToChildren.set(e.source, new Set())
+      parentToChildren.get(e.source)!.add(e.target)
+      if (!childToParents.has(e.target)) childToParents.set(e.target, new Set())
+      childToParents.get(e.target)!.add(e.source)
+    } else if (e.type === "spouse") {
+      spousePairs.push([e.source, e.target])
     }
   }
 
-  return { parentChildEdges, spouseEdges }
+  // Build spouse lookup (person -> set of spouses)
+  const spouseMap = new Map<string, Set<string>>()
+  for (const [a, b] of spousePairs) {
+    if (!spouseMap.has(a)) spouseMap.set(a, new Set())
+    if (!spouseMap.has(b)) spouseMap.set(b, new Set())
+    spouseMap.get(a)!.add(b)
+    spouseMap.get(b)!.add(a)
+  }
+
+  // Compute generations using union-find for spouse contraction + longest path
+  const generationMap = computeGenerations(nodes, edges)
+
+  // Build family units by finding couples that share children
+  const units: FamilyUnit[] = []
+  const usedAsPrimary = new Set<string>() // track who's already the primary of a unit
+  const usedAsSpouse = new Set<string>() // track who's been placed as spouse
+
+  // First pass: find all couples that share children
+  for (const [a, b] of spousePairs) {
+    if (usedAsPrimary.has(a) || usedAsPrimary.has(b)) continue
+    if (!nodeIds.has(a) || !nodeIds.has(b)) continue
+
+    const aChildren = parentToChildren.get(a) ?? new Set()
+    const bChildren = parentToChildren.get(b) ?? new Set()
+
+    // Find shared children
+    const sharedChildren = new Set<string>()
+    for (const c of aChildren) {
+      if (bChildren.has(c)) sharedChildren.add(c)
+    }
+
+    // Determine who is the "primary" (has more parent connections or is leftmost)
+    const aHasParents = (childToParents.get(a)?.size ?? 0) > 0
+    const bHasParents = (childToParents.get(b)?.size ?? 0) > 0
+    let primary: string, spouse: string
+    if (aHasParents && !bHasParents) {
+      primary = a; spouse = b
+    } else if (bHasParents && !aHasParents) {
+      primary = b; spouse = a
+    } else {
+      // Both or neither have parents — pick alphabetically for stability
+      primary = a < b ? a : b
+      spouse = a < b ? b : a
+    }
+
+    // Collect ALL children of both parents (not just shared)
+    const allChildren = new Set<string>()
+    for (const c of aChildren) allChildren.add(c)
+    for (const c of bChildren) allChildren.add(c)
+
+    const gen = generationMap.get(primary) ?? 0
+
+    units.push({
+      id: `${primary}+${spouse}`,
+      primaryId: primary,
+      spouseId: spouse,
+      childIds: [...allChildren].sort(),
+      generation: gen,
+    })
+
+    usedAsPrimary.add(primary)
+    usedAsSpouse.add(spouse)
+  }
+
+  // Second pass: solo parents (have children but no spouse in the data)
+  for (const [parentId, children] of parentToChildren) {
+    if (usedAsPrimary.has(parentId) || usedAsSpouse.has(parentId)) continue
+    if (!nodeIds.has(parentId)) continue
+
+    const gen = generationMap.get(parentId) ?? 0
+    units.push({
+      id: parentId,
+      primaryId: parentId,
+      spouseId: null,
+      childIds: [...children].sort(),
+      generation: gen,
+    })
+    usedAsPrimary.add(parentId)
+  }
+
+  // Third pass: people with a spouse but no children
+  for (const [a, b] of spousePairs) {
+    if (usedAsPrimary.has(a) || usedAsPrimary.has(b)) continue
+    if (usedAsSpouse.has(a) && usedAsSpouse.has(b)) continue
+    if (!nodeIds.has(a) || !nodeIds.has(b)) continue
+
+    const primary = a < b ? a : b
+    const spouse = a < b ? b : a
+    const gen = generationMap.get(primary) ?? 0
+
+    units.push({
+      id: `${primary}+${spouse}`,
+      primaryId: primary,
+      spouseId: spouse,
+      childIds: [],
+      generation: gen,
+    })
+    usedAsPrimary.add(primary)
+    usedAsSpouse.add(spouse)
+  }
+
+  // Fourth pass: completely solo people (no spouse, no children, no parents)
+  // These are leaf nodes
+  for (const node of nodes) {
+    if (usedAsPrimary.has(node.id) || usedAsSpouse.has(node.id)) continue
+    const gen = generationMap.get(node.id) ?? 0
+    units.push({
+      id: node.id,
+      primaryId: node.id,
+      spouseId: null,
+      childIds: [],
+      generation: gen,
+    })
+    usedAsPrimary.add(node.id)
+  }
+
+  // Build person -> unit map (maps individual person IDs to unit ID)
+  const personToUnit = new Map<string, string>()
+  for (const unit of units) {
+    personToUnit.set(unit.primaryId, unit.id)
+    if (unit.spouseId) personToUnit.set(unit.spouseId, unit.id)
+  }
+
+  return { units, personToUnit, generationMap }
 }
 
 // --- Generation computation ---
 
-/**
- * Compute generation levels for all nodes.
- *
- * Contracts spouse pairs into a single "super-node", computes the
- * longest path on the resulting DAG, then expands back so both
- * spouses share the same generation.
- */
-export function computeGenerations(
+function computeGenerations(
   nodes: ApiTreeNode[],
-  parentChildEdges: ApiTreeEdge[],
-  spouseEdges: ApiTreeEdge[],
+  edges: ApiTreeEdge[],
 ): Map<string, number> {
   const nodeIds = nodes.map((n) => n.id)
+  const parentChildEdges = edges.filter((e) => e.type === "parent_child")
+  const spouseEdges = edges.filter((e) => e.type === "spouse")
 
-  // --- Spouse union-find: group spouses into a single representative ---
+  // Union-find for spouse contraction
   const uf = new Map<string, string>()
   function find(x: string): string {
     if (!uf.has(x)) uf.set(x, x)
@@ -74,9 +244,8 @@ export function computeGenerations(
     if (ra !== rb) uf.set(ra, rb)
   }
 
-  // --- Build a contracted DAG of super-nodes ---
-  // Each super-node = a set of spouses sharing the same generation.
-  const superChildren = new Map<string, Set<string>>()  // super-parent → super-children
+  // Build contracted DAG
+  const superChildren = new Map<string, Set<string>>()
   const superInDeg = new Map<string, number>()
   const allSupers = new Set<string>()
 
@@ -89,14 +258,14 @@ export function computeGenerations(
   for (const e of parentChildEdges) {
     const parentSuper = find(e.source)
     const childSuper = find(e.target)
-    if (parentSuper === childSuper) continue // self-loop after contraction
+    if (parentSuper === childSuper) continue
     if (!superChildren.get(parentSuper)!.has(childSuper)) {
       superChildren.get(parentSuper)!.add(childSuper)
       superInDeg.set(childSuper, (superInDeg.get(childSuper) ?? 0) + 1)
     }
   }
 
-  // --- Longest-path via Kahn's topological sort on the super-graph ---
+  // Longest-path via Kahn's topological sort
   const superGen = new Map<string, number>()
   const queue: string[] = []
   for (const s of allSupers) {
@@ -116,13 +285,13 @@ export function computeGenerations(
     }
   }
 
-  // --- Expand back: every node gets its super-node's generation ---
+  // Expand back
   const gen = new Map<string, number>()
   for (const id of nodeIds) {
     gen.set(id, superGen.get(find(id)) ?? 0)
   }
 
-  // --- Normalize to 0 ---
+  // Normalize to 0
   let minG = Infinity
   for (const g of gen.values()) if (g < minG) minG = g
   if (minG > 0) for (const id of nodeIds) gen.set(id, gen.get(id)! - minG)
@@ -130,282 +299,408 @@ export function computeGenerations(
   return gen
 }
 
-// --- Spouse positioning ---
+// --- Family-Unit Layout Algorithm ---
 
-export function positionSpouses(
-  nodes: LayoutNode[],
-  spouseEdges: ApiTreeEdge[],
-  parentChildEdges: ApiTreeEdge[],
-): LayoutNode[] {
-  const result = nodes.map((n) => ({ ...n }))
-  const nodeMap = new Map(result.map((n) => [n.id, n]))
+interface UnitPosition {
+  unitId: string
+  x: number
+  y: number
+  width: number
+}
 
-  // Track which nodes have parent-child connections
-  const pcConnected = new Set<string>()
-  for (const e of parentChildEdges) {
-    pcConnected.add(e.source)
-    pcConnected.add(e.target)
-  }
+/**
+ * Layout family units hierarchically.
+ * 1. Place units by generation (top to bottom)
+ * 2. Within a generation, order children-units left-to-right based on their parent unit's position
+ * 3. Center parent units over their children
+ */
+export function layoutFamilyUnits(
+  units: FamilyUnit[],
+  personToUnit: Map<string, string>,
+): Map<string, UnitPosition> {
+  // Build unit adjacency: which units are parents of which units
+  const unitChildren = new Map<string, string[]>() // parent unit -> child units
+  const unitParents = new Map<string, string[]>() // child unit -> parent units
 
-  // Track already-placed spouses to handle multiple marriages
-  const placedSpouses = new Set<string>()
+  for (const unit of units) {
+    for (const childId of unit.childIds) {
+      const childUnit = personToUnit.get(childId)
+      if (!childUnit) continue
+      // The child might be the primary of their own couple unit
+      const childFamilyUnit = units.find((u) => u.id === childUnit)
+      if (!childFamilyUnit) continue
 
-  for (const edge of spouseEdges) {
-    const nodeA = nodeMap.get(edge.source)
-    const nodeB = nodeMap.get(edge.target)
-    if (!nodeA || !nodeB) continue
+      // Only create parent->child links when the child IS the primary (or spouse) of the child unit
+      // This avoids double-linking
+      if (childFamilyUnit.primaryId === childId || childFamilyUnit.spouseId === childId) {
+        if (!unitChildren.has(unit.id)) unitChildren.set(unit.id, [])
+        const existing = unitChildren.get(unit.id)!
+        if (!existing.includes(childUnit)) existing.push(childUnit)
 
-    const aHasPC = pcConnected.has(nodeA.id)
-    const bHasPC = pcConnected.has(nodeB.id)
-
-    let anchor: LayoutNode
-    let companion: LayoutNode
-
-    if (aHasPC && !bHasPC) {
-      anchor = nodeA
-      companion = nodeB
-    } else if (bHasPC && !aHasPC) {
-      anchor = nodeB
-      companion = nodeA
-    } else {
-      // Both (or neither) have parent-child edges — pick leftmost as anchor
-      if (nodeA.x <= nodeB.x) {
-        anchor = nodeA
-        companion = nodeB
-      } else {
-        anchor = nodeB
-        companion = nodeA
+        if (!unitParents.has(childUnit)) unitParents.set(childUnit, [])
+        const existingParents = unitParents.get(childUnit)!
+        if (!existingParents.includes(unit.id)) existingParents.push(unit.id)
       }
     }
-
-    // Count how many spouses already placed next to this anchor
-    const existingOffset = placedSpouses.has(anchor.id) ? 1 : 0
-    const offset = (1 + existingOffset) * (NODE_WIDTH + SPOUSE_GAP)
-
-    companion.y = anchor.y
-    companion.x = anchor.x + offset
-
-    placedSpouses.add(anchor.id)
-    placedSpouses.add(companion.id)
   }
 
-  return result
-}
-
-// --- Grid snapping ---
-
-export function snapToGrid(nodes: LayoutNode[], tierHeight: number): LayoutNode[] {
-  const result = nodes.map((n) => ({ ...n }))
-
-  // Collect all unique Y values and cluster them into tiers
-  const yValues = result.map((n) => n.y)
-  const minY = Math.min(...yValues)
-
-  // Assign each node to a tier based on rounding
-  for (const node of result) {
-    const relativeY = node.y - minY
-    const tier = Math.round(relativeY / tierHeight)
-    node.y = tier * tierHeight
+  // Group units by generation
+  const genToUnits = new Map<number, FamilyUnit[]>()
+  for (const unit of units) {
+    if (!genToUnits.has(unit.generation)) genToUnits.set(unit.generation, [])
+    genToUnits.get(unit.generation)!.push(unit)
   }
 
-  return result
-}
+  const sortedGens = [...genToUnits.keys()].sort((a, b) => a - b)
+  const positions = new Map<string, UnitPosition>()
 
-// --- Overlap resolution ---
+  // Process generation by generation, top to bottom
+  for (const gen of sortedGens) {
+    const genUnits = genToUnits.get(gen)!
+    const y = gen * TIER_HEIGHT
 
-export function resolveOverlaps(
-  nodes: LayoutNode[],
-  nodeWidth: number,
-  minGap: number,
-): LayoutNode[] {
-  const result = nodes.map((n) => ({ ...n }))
+    // Sort units within a generation:
+    // 1. Units with parents: order by parent's X position
+    // 2. Units without parents (roots): stable order
+    genUnits.sort((a, b) => {
+      const aParents = unitParents.get(a.id) ?? []
+      const bParents = unitParents.get(b.id) ?? []
 
-  // Group by Y tier
-  const tiers = new Map<number, LayoutNode[]>()
-  for (const node of result) {
-    const tier = tiers.get(node.y) ?? []
-    tier.push(node)
-    tiers.set(node.y, tier)
+      // If both have positioned parents, sort by parent X
+      const aParentX = aParents.length > 0 && positions.has(aParents[0]!)
+        ? positions.get(aParents[0]!)!.x
+        : Infinity
+      const bParentX = bParents.length > 0 && positions.has(bParents[0]!)
+        ? positions.get(bParents[0]!)!.x
+        : Infinity
+
+      if (aParentX !== bParentX) return aParentX - bParentX
+
+      // Fallback: alphabetical by unit ID for stability
+      return a.id < b.id ? -1 : 1
+    })
+
+    // Place units left to right
+    let currentX = 0
+    let prevParent: string | null = null
+
+    for (const unit of genUnits) {
+      const width = unit.spouseId ? COUPLE_NODE_WIDTH : PERSON_WIDTH
+
+      // Add family gap between units from different parent families
+      const parents = unitParents.get(unit.id) ?? []
+      const parentKey = parents.length > 0 ? parents[0]! : null
+      if (prevParent !== null && parentKey !== prevParent) {
+        currentX += FAMILY_GAP
+      }
+      prevParent = parentKey
+
+      positions.set(unit.id, {
+        unitId: unit.id,
+        x: currentX,
+        y,
+        width,
+      })
+
+      currentX += width + MIN_SIBLING_GAP
+    }
   }
 
-  // Within each tier, sort by X and push overlapping nodes right
-  for (const [, tierNodes] of tiers) {
-    tierNodes.sort((a, b) => a.x - b.x)
-    for (let i = 1; i < tierNodes.length; i++) {
-      const prev = tierNodes[i - 1]!
-      const curr = tierNodes[i]!
-      const minX = prev.x + nodeWidth + minGap
+  // Second pass: center parents over their children
+  // Go bottom-up to propagate centering
+  for (const gen of [...sortedGens].reverse()) {
+    const genUnits = genToUnits.get(gen)!
+    for (const unit of genUnits) {
+      const children = unitChildren.get(unit.id) ?? []
+      if (children.length === 0) continue
+
+      const childPositions = children
+        .map((cid) => positions.get(cid))
+        .filter((p): p is UnitPosition => p !== undefined)
+
+      if (childPositions.length === 0) continue
+
+      // Center parent over children span
+      const leftmost = Math.min(...childPositions.map((p) => p.x))
+      const rightmost = Math.max(...childPositions.map((p) => p.x + p.width))
+      const childrenCenter = (leftmost + rightmost) / 2
+
+      const parentPos = positions.get(unit.id)!
+      const parentCenter = parentPos.x + parentPos.width / 2
+      const shift = childrenCenter - parentCenter
+
+      if (Math.abs(shift) > 1) {
+        parentPos.x += shift
+      }
+    }
+  }
+
+  // Third pass: resolve overlaps within each tier (push right)
+  for (const gen of sortedGens) {
+    const genUnits = genToUnits.get(gen)!
+    const genPositions = genUnits
+      .map((u) => positions.get(u.id)!)
+      .sort((a, b) => a.x - b.x)
+
+    for (let i = 1; i < genPositions.length; i++) {
+      const prev = genPositions[i - 1]!
+      const curr = genPositions[i]!
+      const minX = prev.x + prev.width + MIN_SIBLING_GAP
       if (curr.x < minX) {
+        const shift = minX - curr.x
         curr.x = minX
-      }
-    }
-  }
-
-  return result
-}
-
-// --- Family unit mapping ---
-
-/**
- * Map each node to a "family key" derived from its sorted parent IDs.
- * Nodes with the same parents belong to the same family unit.
- * Nodes with no parents get a unique key.
- */
-export function buildFamilyMap(
-  nodeIds: string[],
-  parentChildEdges: ApiTreeEdge[],
-  spouseEdges: ApiTreeEdge[],
-): Map<string, string> {
-  // Build child → parents lookup
-  const childToParents = new Map<string, string[]>()
-  for (const edge of parentChildEdges) {
-    const parents = childToParents.get(edge.target) ?? []
-    parents.push(edge.source)
-    childToParents.set(edge.target, parents)
-  }
-
-  const familyMap = new Map<string, string>()
-  for (const id of nodeIds) {
-    const parents = childToParents.get(id)
-    if (parents && parents.length > 0) {
-      familyMap.set(id, [...parents].sort().join("+"))
-    } else {
-      familyMap.set(id, `root:${id}`)
-    }
-  }
-
-  // Normalize spouse pairs: married-in spouses inherit their partner's key
-  for (const edge of spouseEdges) {
-    const keyA = familyMap.get(edge.source)
-    const keyB = familyMap.get(edge.target)
-    if (keyA && keyB && keyA !== keyB) {
-      if (keyA.startsWith("root:")) {
-        familyMap.set(edge.source, keyB)
-      } else {
-        familyMap.set(edge.target, keyA)
-      }
-    }
-  }
-
-  return familyMap
-}
-
-// --- Family spacing ---
-
-/**
- * Add extra horizontal spacing between nodes from different family units
- * within the same tier. Run after resolveOverlaps and before centerTree.
- */
-export function applyFamilySpacing(
-  nodes: LayoutNode[],
-  familyMap: Map<string, string>,
-  familyGap: number,
-  nodeWidth: number,
-): LayoutNode[] {
-  const result = nodes.map((n) => ({ ...n }))
-
-  // Group by Y tier
-  const tiers = new Map<number, LayoutNode[]>()
-  for (const node of result) {
-    const tier = tiers.get(node.y) ?? []
-    tier.push(node)
-    tiers.set(node.y, tier)
-  }
-
-  for (const [, tierNodes] of tiers) {
-    tierNodes.sort((a, b) => a.x - b.x)
-
-    let cumulativeShift = 0
-    for (let i = 1; i < tierNodes.length; i++) {
-      const prevFamily = familyMap.get(tierNodes[i - 1]!.id)
-      const currFamily = familyMap.get(tierNodes[i]!.id)
-
-      if (prevFamily && currFamily && prevFamily !== currFamily) {
-        const currentGap = tierNodes[i]!.x - tierNodes[i - 1]!.x
-        const desiredMinGap = nodeWidth + familyGap
-        if (currentGap < desiredMinGap) {
-          cumulativeShift += desiredMinGap - currentGap
+        // Push all subsequent nodes too
+        for (let j = i + 1; j < genPositions.length; j++) {
+          genPositions[j]!.x += shift
         }
       }
-
-      tierNodes[i]!.x += cumulativeShift
     }
   }
 
-  return result
-}
+  // Fourth pass: re-center parents after overlap resolution
+  for (const gen of [...sortedGens].reverse()) {
+    const genUnits = genToUnits.get(gen)!
+    for (const unit of genUnits) {
+      const children = unitChildren.get(unit.id) ?? []
+      if (children.length === 0) continue
 
-// --- Flip Y axis (mirror vertically) ---
+      const childPositions = children
+        .map((cid) => positions.get(cid))
+        .filter((p): p is UnitPosition => p !== undefined)
 
-export function flipY(nodes: LayoutNode[]): LayoutNode[] {
-  if (nodes.length === 0) return nodes
+      if (childPositions.length === 0) continue
 
-  const result = nodes.map((n) => ({ ...n }))
-  const maxY = Math.max(...result.map((n) => n.y))
+      const leftmost = Math.min(...childPositions.map((p) => p.x))
+      const rightmost = Math.max(...childPositions.map((p) => p.x + p.width))
+      const childrenCenter = (leftmost + rightmost) / 2
 
-  for (const node of result) {
-    node.y = maxY - node.y
+      const parentPos = positions.get(unit.id)!
+      const parentCenter = parentPos.x + parentPos.width / 2
+      const shift = childrenCenter - parentCenter
+
+      if (Math.abs(shift) > 1) {
+        parentPos.x += shift
+      }
+    }
   }
 
-  return result
-}
+  // Final pass: resolve any remaining overlaps after re-centering
+  for (const gen of sortedGens) {
+    const genUnits = genToUnits.get(gen)!
+    const genPositions = genUnits
+      .map((u) => positions.get(u.id)!)
+      .sort((a, b) => a.x - b.x)
 
-// --- Center tree horizontally ---
-
-export function centerTree(nodes: LayoutNode[]): LayoutNode[] {
-  if (nodes.length === 0) return nodes
-
-  const result = nodes.map((n) => ({ ...n }))
-  const minX = Math.min(...result.map((n) => n.x))
-
-  // Shift so leftmost node starts at x=0
-  for (const node of result) {
-    node.x -= minX
+    for (let i = 1; i < genPositions.length; i++) {
+      const prev = genPositions[i - 1]!
+      const curr = genPositions[i]!
+      const minX = prev.x + prev.width + MIN_SIBLING_GAP
+      if (curr.x < minX) {
+        const shift = minX - curr.x
+        curr.x = minX
+        for (let j = i + 1; j < genPositions.length; j++) {
+          genPositions[j]!.x += shift
+        }
+      }
+    }
   }
 
-  return result
+  // Normalize: shift so leftmost node is at x=0
+  let minX = Infinity
+  for (const pos of positions.values()) {
+    if (pos.x < minX) minX = pos.x
+  }
+  if (minX !== 0) {
+    for (const pos of positions.values()) {
+      pos.x -= minX
+    }
+  }
+
+  return positions
 }
 
-// --- Build React Flow nodes from layout ---
+// --- Build React Flow nodes and edges ---
 
 export function buildReactFlowNodes(
-  layoutNodes: LayoutNode[],
+  units: FamilyUnit[],
+  positions: Map<string, UnitPosition>,
   apiNodes: ApiTreeNode[],
-): PersonNode[] {
-  return layoutNodes.map((ln) => {
-    const apiNode = apiNodes.find((n) => n.id === ln.id)!
+): CoupleNode[] {
+  const nodeMap = new Map(apiNodes.map((n) => [n.id, n]))
+
+  return units.map((unit) => {
+    const pos = positions.get(unit.id)!
+    const primary = nodeMap.get(unit.primaryId)!
+    const spouse = unit.spouseId ? nodeMap.get(unit.spouseId) ?? null : null
+
     return {
-      id: ln.id,
-      type: "personNode" as const,
-      position: { x: ln.x, y: ln.y },
-      data: { ...apiNode.data },
-      style: { width: NODE_WIDTH, height: NODE_HEIGHT },
+      id: unit.id,
+      type: "coupleNode" as const,
+      position: { x: pos.x, y: pos.y },
+      data: {
+        primary: { ...primary.data },
+        spouse: spouse ? { ...spouse.data } : null,
+        isCouple: !!spouse,
+        primaryId: unit.primaryId,
+        spouseId: unit.spouseId,
+        primaryIsDirectLine: false,
+        spouseIsDirectLine: false,
+        primaryIsFocused: false,
+        spouseIsFocused: false,
+      },
+      style: {
+        width: pos.width,
+        height: unit.spouseId ? COUPLE_NODE_HEIGHT : PERSON_NODE_HEIGHT,
+      },
     }
   })
 }
 
-// --- Build React Flow edges ---
+/**
+ * Build shared-trunk edges for parent->children connections.
+ * Instead of individual parent->child edges, we create one "trunk" edge per parent unit
+ * that connects to all its child units via a shared horizontal bar.
+ */
+export function buildReactFlowEdges(
+  units: FamilyUnit[],
+  personToUnit: Map<string, string>,
+): TreeEdge[] {
+  const edges: TreeEdge[] = []
+  const seen = new Set<string>()
 
-export function buildReactFlowEdges(apiEdges: ApiTreeEdge[]): TreeEdge[] {
-  return apiEdges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    type: e.type === "spouse" ? "spouse" : "parentChild",
-    sourceHandle: e.type === "spouse" ? "spouse-right" : "pc-source",
-    targetHandle: e.type === "spouse" ? "spouse-left" : "pc-target",
-    data: { isDirectLine: false },
-  }))
+  for (const unit of units) {
+    if (unit.childIds.length === 0) continue
+
+    // Group children by their couple-unit
+    const childUnitIds = new Set<string>()
+    for (const childId of unit.childIds) {
+      const childUnitId = personToUnit.get(childId)
+      if (childUnitId) childUnitIds.add(childUnitId)
+    }
+
+    const childUnits = [...childUnitIds]
+    const edgeId = `trunk-${unit.id}`
+    if (seen.has(edgeId)) continue
+    seen.add(edgeId)
+
+    if (childUnits.length === 1) {
+      // Single child: direct edge
+      edges.push({
+        id: edgeId,
+        source: unit.id,
+        target: childUnits[0]!,
+        type: "parentChild",
+        sourceHandle: "pc-source",
+        targetHandle: "pc-target",
+        data: {
+          isDirectLine: false,
+          childNodeIds: childUnits,
+          parentNodeId: unit.id,
+        },
+      })
+    } else {
+      // Multiple children: one edge per child but all from the same parent
+      // The trunk rendering is handled by the custom edge component
+      for (const childUnitId of childUnits) {
+        const childEdgeId = `${edgeId}->${childUnitId}`
+        edges.push({
+          id: childEdgeId,
+          source: unit.id,
+          target: childUnitId,
+          type: "parentChild",
+          sourceHandle: "pc-source",
+          targetHandle: "pc-target",
+          data: {
+            isDirectLine: false,
+            childNodeIds: childUnits,
+            parentNodeId: unit.id,
+          },
+        })
+      }
+    }
+  }
+
+  return edges
 }
 
-// --- ELK layout options ---
+// --- Direct line computation ---
 
-export const ELK_LAYOUT_OPTIONS = {
-  "elk.algorithm": "layered",
-  "elk.direction": "DOWN",
-  "elk.spacing.nodeNode": "60",
-  "elk.layered.spacing.nodeNodeBetweenLayers": "200",
-  "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
-  "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
-  "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED",
+/**
+ * Walk up (ancestors) and down (descendants) from focusId,
+ * including spouses of all direct-line people.
+ * Returns a Set of person IDs on the direct line.
+ */
+export function computeDirectLinePersonIds(
+  focusId: string,
+  apiEdges: ApiTreeEdge[],
+): Set<string> {
+  const childToParents = new Map<string, string[]>()
+  const parentToChildren = new Map<string, string[]>()
+  const spouseMap = new Map<string, string[]>()
+
+  for (const e of apiEdges) {
+    if (e.type === "parent_child") {
+      if (!childToParents.has(e.target)) childToParents.set(e.target, [])
+      childToParents.get(e.target)!.push(e.source)
+      if (!parentToChildren.has(e.source)) parentToChildren.set(e.source, [])
+      parentToChildren.get(e.source)!.push(e.target)
+    } else {
+      if (!spouseMap.has(e.source)) spouseMap.set(e.source, [])
+      spouseMap.get(e.source)!.push(e.target)
+      if (!spouseMap.has(e.target)) spouseMap.set(e.target, [])
+      spouseMap.get(e.target)!.push(e.source)
+    }
+  }
+
+  const direct = new Set<string>()
+  direct.add(focusId)
+
+  // Walk UP
+  const upQueue = [focusId]
+  while (upQueue.length > 0) {
+    const cur = upQueue.pop()!
+    for (const parent of childToParents.get(cur) ?? []) {
+      if (!direct.has(parent)) {
+        direct.add(parent)
+        upQueue.push(parent)
+      }
+    }
+  }
+
+  // Walk DOWN
+  const downQueue = [focusId]
+  while (downQueue.length > 0) {
+    const cur = downQueue.pop()!
+    for (const child of parentToChildren.get(cur) ?? []) {
+      if (!direct.has(child)) {
+        direct.add(child)
+        downQueue.push(child)
+      }
+    }
+  }
+
+  // Add spouses
+  const directCopy = [...direct]
+  for (const id of directCopy) {
+    for (const spouse of spouseMap.get(id) ?? []) {
+      direct.add(spouse)
+    }
+  }
+
+  return direct
+}
+
+/**
+ * Convert person-level direct line IDs to unit-level IDs.
+ */
+export function personIdsToUnitIds(
+  personIds: Set<string>,
+  personToUnit: Map<string, string>,
+): Set<string> {
+  const unitIds = new Set<string>()
+  for (const pid of personIds) {
+    const uid = personToUnit.get(pid)
+    if (uid) unitIds.add(uid)
+  }
+  return unitIds
 }

@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { api } from "../../lib/api"
@@ -27,6 +28,12 @@ function TreePersonPage() {
   const setFocusedPerson = useTreeStore((s) => s.setFocusedPerson)
   const detailPanelOpen = useUiStore((s) => s.detailPanelOpen)
   const toggleDetailPanel = useUiStore((s) => s.toggleDetailPanel)
+
+  // Immediately sync focused person on mount and on param change
+  useEffect(() => {
+    setFocusedPerson(personId)
+    if (!detailPanelOpen) toggleDetailPanel()
+  }, [personId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data, isLoading, isError, error } = useQuery<TreeResponse>({
     queryKey: ["tree", personId],
@@ -101,7 +108,7 @@ function TreePersonPage() {
 
       {/* Person detail panel - right sidebar */}
       <PersonDetailPanel
-        personId={detailPanelOpen ? focusedPersonId : null}
+        personId={detailPanelOpen ? (focusedPersonId ?? personId) : null}
         onClose={() => {
           setFocusedPerson(null)
           if (detailPanelOpen) toggleDetailPanel()

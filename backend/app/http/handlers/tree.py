@@ -143,7 +143,7 @@ async def get_subtree(
     # Use recursive CTE to find all connected persons within depth
     cte_sql = text("""
         WITH RECURSIVE connected AS (
-            SELECT :person_id::uuid AS pid, 0 AS depth
+            SELECT CAST(:person_id AS uuid) AS pid, 0 AS depth
             UNION
             SELECT
                 CASE
@@ -181,6 +181,109 @@ async def get_subtree(
     return TreeResponse(nodes=nodes, edges=edges)
 
 
+@router.get("/{person_id}/expand", response_model=TreeResponse)
+async def expand_node(
+    person_id: uuid.UUID,
+    direction: str = Query("both", regex="^(up|down|both)$"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Expand one level around a person in a given direction.
+
+    Used for progressive disclosure: fetches immediate parents (up),
+    immediate children + their spouses (down), or both.
+    """
+    person_result = await db.execute(select(Person).where(Person.id == person_id))
+    person = person_result.scalar_one_or_none()
+    if not person:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
+
+    person_ids = {person_id}
+
+    # Get the person's spouse(s) too
+    spouse_rels = await db.execute(
+        select(Relationship).where(
+            ((Relationship.person_id == person_id) | (Relationship.related_person_id == person_id)),
+            Relationship.relationship == "SPOUSE",
+        )
+    )
+    for rel in spouse_rels.scalars().all():
+        person_ids.add(rel.person_id)
+        person_ids.add(rel.related_person_id)
+
+    if direction in ("up", "both"):
+        # Get parents
+        parent_rels = await db.execute(
+            select(Relationship).where(
+                Relationship.person_id == person_id,
+                Relationship.relationship == "PARENT_CHILD",
+            )
+        )
+        for rel in parent_rels.scalars().all():
+            parent_id = rel.related_person_id
+            person_ids.add(parent_id)
+            # Also get parent's spouse(s)
+            parent_spouse_rels = await db.execute(
+                select(Relationship).where(
+                    ((Relationship.person_id == parent_id) | (Relationship.related_person_id == parent_id)),
+                    Relationship.relationship == "SPOUSE",
+                )
+            )
+            for sr in parent_spouse_rels.scalars().all():
+                person_ids.add(sr.person_id)
+                person_ids.add(sr.related_person_id)
+
+    if direction in ("down", "both"):
+        # Get children (person is a parent: related_person_id = person_id)
+        child_rels = await db.execute(
+            select(Relationship).where(
+                Relationship.related_person_id == person_id,
+                Relationship.relationship == "PARENT_CHILD",
+            )
+        )
+        for rel in child_rels.scalars().all():
+            child_id = rel.person_id
+            person_ids.add(child_id)
+            # Also get child's spouse(s)
+            child_spouse_rels = await db.execute(
+                select(Relationship).where(
+                    ((Relationship.person_id == child_id) | (Relationship.related_person_id == child_id)),
+                    Relationship.relationship == "SPOUSE",
+                )
+            )
+            for sr in child_spouse_rels.scalars().all():
+                person_ids.add(sr.person_id)
+                person_ids.add(sr.related_person_id)
+
+        # Also check if any of the person's spouses have children
+        for spouse_id in list(person_ids):
+            if spouse_id == person_id:
+                continue
+            spouse_child_rels = await db.execute(
+                select(Relationship).where(
+                    Relationship.related_person_id == spouse_id,
+                    Relationship.relationship == "PARENT_CHILD",
+                )
+            )
+            for rel in spouse_child_rels.scalars().all():
+                person_ids.add(rel.person_id)
+
+    pid_list = list(person_ids)
+    persons_result = await db.execute(select(Person).where(Person.id.in_(pid_list)))
+    persons = persons_result.scalars().all()
+
+    rels_result = await db.execute(
+        select(Relationship).where(
+            Relationship.person_id.in_(pid_list),
+            Relationship.related_person_id.in_(pid_list),
+        )
+    )
+    rels = rels_result.scalars().all()
+
+    nodes = [_person_to_node(p) for p in persons]
+    edges = [_relationship_to_edge(r) for r in rels]
+    return TreeResponse(nodes=nodes, edges=edges)
+
+
 @router.get("/{person_id}/ancestors", response_model=TreeResponse)
 async def get_ancestors(
     person_id: uuid.UUID,
@@ -196,7 +299,7 @@ async def get_ancestors(
     # To find ancestors, we go from child to parent: where person_id = current, get related_person_id.
     cte_sql = text("""
         WITH RECURSIVE ancestors AS (
-            SELECT :person_id::uuid AS pid
+            SELECT CAST(:person_id AS uuid) AS pid
             UNION
             SELECT r.related_person_id AS pid
             FROM relationships r
@@ -239,7 +342,7 @@ async def get_descendants(
     # To find descendants, we go from parent to child: where related_person_id = current, get person_id.
     cte_sql = text("""
         WITH RECURSIVE descendants AS (
-            SELECT :person_id::uuid AS pid
+            SELECT CAST(:person_id AS uuid) AS pid
             UNION
             SELECT r.person_id AS pid
             FROM relationships r

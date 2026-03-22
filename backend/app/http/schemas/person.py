@@ -46,6 +46,7 @@ class PersonCreate(BaseModel):
     military_service: str | None = None
     burial_location: str | None = None
     notes: str | None = None
+    birth_notes: str | None = None
 
 class PersonUpdate(BaseModel):
     first_name: str | None = None
@@ -73,6 +74,7 @@ class PersonUpdate(BaseModel):
     military_service: str | None = None
     burial_location: str | None = None
     notes: str | None = None
+    birth_notes: str | None = None
 
 class PersonResponse(BaseModel):
     id: uuid.UUID
@@ -102,6 +104,7 @@ class PersonResponse(BaseModel):
     military_service: str | None
     burial_location: str | None
     notes: str | None
+    birth_notes: str | None = None
     created_at: datetime
     updated_at: datetime
 

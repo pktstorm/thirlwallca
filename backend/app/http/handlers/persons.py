@@ -17,6 +17,8 @@ from app.http.schemas.person import (
     ProfilePhotoUploadResponse,
     ProfilePhotoConfirmRequest,
 )
+from app.auth.rbac import require_role
+from app.domain.enums import UserRole
 from app.services.location_service import find_or_create_location, format_place_text
 
 router = APIRouter()
@@ -164,13 +166,20 @@ async def update_person(
 @router.delete("/{person_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_person(
     person_id: uuid.UUID,
+    current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.EDITOR)),
     db: AsyncSession = Depends(get_db),
 ):
+    if current_user.linked_person_id == person_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own linked person record",
+        )
     result = await db.execute(select(Person).where(Person.id == person_id))
     person = result.scalar_one_or_none()
     if not person:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
     await db.delete(person)
+    await db.commit()
 
 
 @router.post(

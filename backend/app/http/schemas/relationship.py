@@ -9,6 +9,7 @@ class RelationshipCreate(BaseModel):
     relationship: str
     marriage_date: date | None = None
     divorce_date: date | None = None
+    marriage_place_text: str | None = None
     notes: str | None = None
 
 
@@ -16,6 +17,7 @@ class RelationshipUpdate(BaseModel):
     relationship: str | None = None
     marriage_date: date | None = None
     divorce_date: date | None = None
+    marriage_place_text: str | None = None
     notes: str | None = None
 
 
@@ -26,8 +28,9 @@ class RelationshipResponse(BaseModel):
     relationship: str
     marriage_date: date | None
     divorce_date: date | None
-    notes: str | None
-    created_by: uuid.UUID | None
+    marriage_place_text: str | None = None
+    notes: str | None = None
+    created_by: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 

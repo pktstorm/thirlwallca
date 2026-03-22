@@ -224,6 +224,22 @@
   }
 }
 
+/* Generation band alternating backgrounds (applied via JS) */
+.generation-band-even {
+  background-color: rgba(157, 187, 168, 0.04);
+}
+.generation-band-odd {
+  background-color: transparent;
+}
+.dark .generation-band-even {
+  background-color: rgba(48, 232, 110, 0.03);
+}
+
+/* Smooth transitions for semantic zoom level changes */
+.family-tree-canvas .react-flow__node {
+  transition: opacity 0.2s ease;
+}
+
 /* Time slider dual-thumb range inputs */
 .time-slider-thumb {
   -webkit-appearance: none;

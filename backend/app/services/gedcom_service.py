@@ -2,7 +2,8 @@
 
 Parses a GEDCOM file into plain Python dataclasses with zero database
 dependencies. Handles individuals (INDI), families (FAM), names, dates,
-places with coordinates, burial text, alternate names, and residences.
+places with coordinates, burial text, alternate names, residences,
+notes (NOTE), and source records (SOUR).
 """
 
 from __future__ import annotations
@@ -50,6 +51,12 @@ class GedcomPerson:
     residences: list[tuple[GedcomPlace | None, GedcomDate | None]] = field(default_factory=list)
     family_spouse_ids: list[str] = field(default_factory=list)
     family_child_ids: list[str] = field(default_factory=list)
+    birth_notes: str | None = None
+    notes: str | None = None
+    cause_of_death: str | None = None
+    # Internal: note xrefs to resolve after parsing all records
+    _note_refs: list[str] = field(default_factory=list)
+    _inline_notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -61,12 +68,15 @@ class GedcomFamily:
     marriage_date: GedcomDate | None = None
     marriage_place: GedcomPlace | None = None
     divorce_date: GedcomDate | None = None
+    marriage_venue_text: str | None = None
 
 
 @dataclass
 class GedcomData:
     persons: dict[str, GedcomPerson] = field(default_factory=dict)
     families: dict[str, GedcomFamily] = field(default_factory=dict)
+    notes: dict[str, str] = field(default_factory=dict)
+    sources: dict[str, str] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -229,7 +239,66 @@ def _parse_name(name_value: str) -> tuple[str, str | None, str]:
         first_name = ""
         middle_name = None
 
+    # Sanitize "?" placeholders (Issues #9, #10)
+    if first_name == "?":
+        first_name = ""
+    if last_name == "?":
+        last_name = ""
+
+    # If no given name but surname is populated and the original text had no
+    # given-name portion (e.g., "/Leona/"), the name is likely a first-name-only
+    # entry where FTM placed the name between slashes. Swap. (Issue #8)
+    if not first_name and last_name and not given:
+        first_name = last_name
+        last_name = ""
+
     return (first_name, middle_name, last_name)
+
+
+# ---------------------------------------------------------------------------
+# Death text helpers
+# ---------------------------------------------------------------------------
+
+_CAUSE_PREFIXES = ("drowned", "killed", "private,", "private ", "died")
+
+
+def _dedup_text(text: str) -> str:
+    """Remove obvious duplicated segments in burial/death text (Issue #21)."""
+    half = len(text) // 2
+    if half > 20:
+        first_half = text[:half].strip()
+        second_half = text[half:].strip()
+        if first_half == second_half:
+            return first_half
+    return text
+
+
+def _split_death_text(text: str) -> tuple[str | None, str | None]:
+    """Separate cause_of_death from burial info in DEAT inline text (Issue #25).
+
+    Returns (cause_of_death, burial_text).
+    """
+    lower = text.lower()
+
+    # Pure burial info
+    if lower.startswith("buried in") or lower.startswith("cimetiere") or lower.startswith("cimetière"):
+        return None, text
+
+    # Cemetery name patterns (e.g., "All Souls Kensal Green", "Mt Hermon Cemetary")
+    if lower.startswith("all souls") or "cemeta" in lower or "cemete" in lower or lower.startswith("mt "):
+        return None, text
+
+    # Check if text starts with a cause-of-death keyword
+    for prefix in _CAUSE_PREFIXES:
+        if lower.startswith(prefix):
+            # Check if burial info follows
+            buried_idx = lower.find("buried")
+            if buried_idx > 0:
+                return text[:buried_idx].rstrip(", "), text[buried_idx:]
+            return text, None
+
+    # Default: treat as burial info
+    return None, text
 
 
 # ---------------------------------------------------------------------------
@@ -290,6 +359,17 @@ def _extract_place_with_coords(subs: list[tuple[int, str | None, str, str]]) -> 
     return _parse_place(place_str, lat, lng)
 
 
+def _collect_conc_cont(subs: list[tuple[int, str | None, str, str]], initial: str = "") -> str:
+    """Collect CONC/CONT continuation lines into a single string."""
+    parts = [initial] if initial else []
+    for _, _, tag, value in subs:
+        if tag == "CONC":
+            parts.append(value)
+        elif tag == "CONT":
+            parts.append("\n" + value)
+    return "".join(parts).strip()
+
+
 # ---------------------------------------------------------------------------
 # Individual parsing
 # ---------------------------------------------------------------------------
@@ -306,14 +386,18 @@ def _parse_individual(record_lines: list[str]) -> GedcomPerson:
     gender = "unknown"
     birth_date: GedcomDate | None = None
     birth_place: GedcomPlace | None = None
+    birth_notes: str | None = None
     death_date: GedcomDate | None = None
     death_place: GedcomPlace | None = None
     burial_text: str | None = None
+    cause_of_death: str | None = None
     has_death = False
     aka_names: list[str] = []
     residences: list[tuple[GedcomPlace | None, GedcomDate | None]] = []
     fams: list[str] = []
     famc: list[str] = []
+    note_refs: list[str] = []
+    inline_notes: list[str] = []
 
     primary_name_set = False
 
@@ -344,10 +428,15 @@ def _parse_individual(record_lines: list[str]) -> GedcomPerson:
                 gender = "male"
             elif sex == "F":
                 gender = "female"
+            elif sex == "U":
+                gender = "unknown"
             else:
                 gender = "unknown"
 
         elif tag == "BIRT":
+            # Capture inline text (Issue #5): "BIRT Adopted", "BIRT Salinas Valley Memorial"
+            if value.strip():
+                birth_notes = value.strip()
             subs = _extract_subrecords(record_lines, i, 1)
             date_str = _find_in_subs(subs, "DATE")
             if date_str:
@@ -356,19 +445,19 @@ def _parse_individual(record_lines: list[str]) -> GedcomPerson:
 
         elif tag == "DEAT":
             has_death = True
-            # Check for burial text on the DEAT line itself
-            if value.strip():
-                burial_parts = [value.strip()]
-                # Collect CONC lines that continue the burial text
-                subs = _extract_subrecords(record_lines, i, 1)
-                for sub_level, _, sub_tag, sub_value in subs:
-                    if sub_level == 2 and sub_tag == "CONC":
-                        burial_parts.append(sub_value)
-                    elif sub_level == 2 and sub_tag == "CONT":
-                        burial_parts.append("\n" + sub_value)
-                burial_text = "".join(burial_parts).strip()
-
+            # Extract subrecords once (Issue #4)
             subs = _extract_subrecords(record_lines, i, 1)
+
+            # Capture inline death text (burial/cause info)
+            if value.strip():
+                deat_text = _collect_conc_cont(subs, value.strip())
+                deat_text = _dedup_text(deat_text)
+                cause, burial = _split_death_text(deat_text)
+                if cause:
+                    cause_of_death = cause
+                if burial:
+                    burial_text = burial
+
             date_str = _find_in_subs(subs, "DATE")
             if date_str:
                 death_date = _parse_date(date_str)
@@ -381,6 +470,17 @@ def _parse_individual(record_lines: list[str]) -> GedcomPerson:
             addr_date = _parse_date(addr_date_str) if addr_date_str else None
             residences.append((place, addr_date))
 
+        elif tag == "NOTE":
+            # Note can be an xref reference or inline text
+            stripped = value.strip()
+            if stripped.startswith("@") and stripped.endswith("@"):
+                note_refs.append(stripped)
+            elif stripped:
+                subs = _extract_subrecords(record_lines, i, 1)
+                note_text = _collect_conc_cont(subs, stripped)
+                if note_text:
+                    inline_notes.append(note_text)
+
         elif tag == "FAMS":
             if value.strip():
                 fams.append(value.strip())
@@ -391,9 +491,17 @@ def _parse_individual(record_lines: list[str]) -> GedcomPerson:
 
         i += 1
 
-    # is_living heuristic: no death event AND (no birth year OR birth year > 1940)
+    # is_living heuristic (Issue #12):
+    # - Has death event → not living
+    # - Has birth year > 1920 and no death → living
+    # - No birth year and no death → default to not living (historical unknowns)
     birth_year = birth_date.value.year if birth_date and birth_date.value else None
-    is_living = not has_death and (birth_year is None or birth_year > 1940)
+    if has_death:
+        is_living = False
+    elif birth_year is not None:
+        is_living = birth_year > 1920
+    else:
+        is_living = False
 
     return GedcomPerson(
         xref_id=xref_id,
@@ -411,6 +519,10 @@ def _parse_individual(record_lines: list[str]) -> GedcomPerson:
         residences=residences,
         family_spouse_ids=fams,
         family_child_ids=famc,
+        birth_notes=birth_notes,
+        cause_of_death=cause_of_death,
+        _note_refs=note_refs,
+        _inline_notes=inline_notes,
     )
 
 
@@ -429,6 +541,7 @@ def _parse_family(record_lines: list[str]) -> GedcomFamily:
     marriage_date: GedcomDate | None = None
     marriage_place: GedcomPlace | None = None
     divorce_date: GedcomDate | None = None
+    marriage_venue_text: str | None = None
 
     i = 1
     while i < len(record_lines):
@@ -446,6 +559,9 @@ def _parse_family(record_lines: list[str]) -> GedcomFamily:
             if value.strip():
                 child_ids.append(value.strip())
         elif tag == "MARR":
+            # Capture inline venue text (Issue #20): "MARR Holy Trinity Chelsea"
+            if value.strip():
+                marriage_venue_text = value.strip()
             subs = _extract_subrecords(record_lines, i, 1)
             date_str = _find_in_subs(subs, "DATE")
             if date_str:
@@ -467,7 +583,26 @@ def _parse_family(record_lines: list[str]) -> GedcomFamily:
         marriage_date=marriage_date,
         marriage_place=marriage_place,
         divorce_date=divorce_date,
+        marriage_venue_text=marriage_venue_text,
     )
+
+
+# ---------------------------------------------------------------------------
+# NOTE record parsing
+# ---------------------------------------------------------------------------
+
+def _parse_note_record(record_lines: list[str]) -> str:
+    """Parse a top-level NOTE record, concatenating CONC/CONT lines."""
+    _, _, _, value = _parse_line(record_lines[0])
+    parts = [value.strip()] if value.strip() else []
+    for line in record_lines[1:]:
+        _, _, tag, val = _parse_line(line)
+        if tag == "CONC":
+            parts.append(val)
+        elif tag == "CONT":
+            parts.append("\n" + val)
+        # Skip _PRIV and other tags
+    return "".join(parts).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -492,6 +627,28 @@ def parse_gedcom(content: str) -> GedcomData:
         elif tag == "FAM":
             family = _parse_family(record)
             data.families[family.xref_id] = family
+        elif tag == "NOTE" and xref:
+            # Top-level NOTE record (Issue #2): "0 @H1@ NOTE"
+            note_text = _parse_note_record(record)
+            if note_text:
+                data.notes[xref] = note_text
+        elif tag == "SOUR" and xref:
+            # Top-level SOUR record (Issue #3): "0 @S1@ SOUR"
+            for line in record[1:]:
+                _, _, t, v = _parse_line(line)
+                if t == "TITL":
+                    data.sources[xref] = v.strip()
+                    break
+
+    # Post-process: resolve NOTE references on persons (Issue #2)
+    for person in data.persons.values():
+        all_notes: list[str] = list(person._inline_notes)
+        for ref in person._note_refs:
+            resolved = data.notes.get(ref)
+            if resolved:
+                all_notes.append(resolved)
+        if all_notes:
+            person.notes = "\n\n".join(all_notes)
 
     return data
 

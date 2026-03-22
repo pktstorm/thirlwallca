@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ReactFlow,
   Background,
@@ -11,29 +11,25 @@ import {
   ReactFlowProvider,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
-import ELK from "elkjs/lib/elk.bundled.js"
 import { useNavigate } from "@tanstack/react-router"
 import { useTreeStore } from "../../stores/treeStore"
 import { useUiStore } from "../../stores/uiStore"
-import { PersonNode } from "./PersonNode"
-import { ParentChildEdge, SpouseEdge } from "./PersonEdge"
+import { CoupleNodeMemo } from "./CoupleNode"
+import { ParentChildEdge } from "./PersonEdge"
 import { TreeControls } from "./TreeControls"
 import {
-  NODE_WIDTH,
-  NODE_HEIGHT,
-  TIER_HEIGHT,
-  MIN_SIBLING_GAP,
-  ELK_LAYOUT_OPTIONS,
-  partitionEdges,
-  computeGenerations,
-  positionSpouses,
-  snapToGrid,
-  resolveOverlaps,
-  centerTree,
+  COUPLE_NODE_HEIGHT,
+  PERSON_WIDTH,
+  PERSON_NODE_HEIGHT,
+  buildFamilyUnits,
+  layoutFamilyUnits,
   buildReactFlowNodes,
   buildReactFlowEdges,
-  type PersonNode as PersonNodeType,
+  computeDirectLinePersonIds,
+  personIdsToUnitIds,
+  type CoupleNode,
   type TreeEdge,
+  type FamilyUnit,
 } from "./layoutUtils"
 
 // --- Types ---
@@ -70,73 +66,50 @@ interface FamilyTreeCanvasProps {
   nodes: ApiTreeNode[]
   edges: ApiTreeEdge[]
   focusPersonId?: string
+  onExpand?: (personId: string, direction: "up" | "down" | "both") => void
+  isExpanding?: boolean
 }
 
-// --- ELK layout pipeline ---
+// --- Generation label node component ---
 
-const elk = new ELK()
-
-async function getLayoutedElements(
-  apiNodes: ApiTreeNode[],
-  apiEdges: ApiTreeEdge[],
-): Promise<{ nodes: PersonNodeType[]; edges: TreeEdge[] }> {
-  const { parentChildEdges, spouseEdges } = partitionEdges(apiEdges)
-
-  const generationMap = computeGenerations(apiNodes, parentChildEdges, spouseEdges)
-
-  const graph = {
-    id: "root",
-    layoutOptions: {
-      ...ELK_LAYOUT_OPTIONS,
-      "elk.partitioning.activate": "true",
-    },
-    children: apiNodes.map((n) => ({
-      id: n.id,
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
-      layoutOptions: {
-        "elk.partitioning.partition": String(generationMap.get(n.id) ?? 0),
-      },
-    })),
-    edges: parentChildEdges.map((e) => ({
-      id: e.id,
-      sources: [e.source],
-      targets: [e.target],
-    })),
-  }
-
-  console.log("[tree] running ELK layout...")
-  const layout = await elk.layout(graph)
-
-  let layoutNodes = (layout.children ?? []).map((child) => ({
-    id: child.id,
-    x: child.x ?? 0,
-    y: child.y ?? 0,
-  }))
-
-  layoutNodes = positionSpouses(layoutNodes, spouseEdges, parentChildEdges)
-  layoutNodes = snapToGrid(layoutNodes, TIER_HEIGHT)
-  layoutNodes = resolveOverlaps(layoutNodes, NODE_WIDTH, MIN_SIBLING_GAP)
-  layoutNodes = centerTree(layoutNodes)
-
-  const nodes = buildReactFlowNodes(layoutNodes, apiNodes)
-  const edges = buildReactFlowEdges(apiEdges)
-
-  console.log("[tree] layout done, nodes:", nodes.length, "first:", JSON.stringify(nodes[0]))
-  console.log("[tree] edges:", edges.length, "first:", JSON.stringify(edges[0]))
-
-  return { nodes, edges }
+function GenerationLabelNode({ data }: { data: { label: string } }) {
+  return (
+    <div className="text-sage-300/60 dark:text-dark-text-muted/30 text-[10px] font-bold uppercase tracking-[0.2em] select-none pointer-events-none whitespace-nowrap">
+      {data.label}
+    </div>
+  )
 }
 
 // --- Node & Edge type registrations ---
 
 const nodeTypes = {
-  personNode: PersonNode,
+  coupleNode: CoupleNodeMemo,
+  generationLabel: GenerationLabelNode,
 }
 
 const edgeTypes = {
   parentChild: ParentChildEdge,
-  spouse: SpouseEdge,
+}
+
+// --- Layout pipeline ---
+
+interface LayoutResult {
+  nodes: CoupleNode[]
+  edges: TreeEdge[]
+  generationMap: Map<string, number>
+  units: FamilyUnit[]
+  personToUnit: Map<string, string>
+}
+
+function computeLayout(
+  apiNodes: ApiTreeNode[],
+  apiEdges: ApiTreeEdge[],
+): LayoutResult {
+  const { units, personToUnit, generationMap } = buildFamilyUnits(apiNodes, apiEdges)
+  const positions = layoutFamilyUnits(units, personToUnit)
+  const nodes = buildReactFlowNodes(units, positions, apiNodes)
+  const edges = buildReactFlowEdges(units, personToUnit)
+  return { nodes, edges, generationMap, units, personToUnit }
 }
 
 // --- Inner canvas (needs ReactFlowProvider context) ---
@@ -145,42 +118,199 @@ function FamilyTreeCanvasInner({
   nodes: apiNodes,
   edges: apiEdges,
   focusPersonId,
+  onExpand: _onExpand,
+  isExpanding: _isExpanding,
 }: FamilyTreeCanvasProps) {
   const navigate = useNavigate()
   const { fitView, setCenter } = useReactFlow()
   const setFocusedPerson = useTreeStore((s) => s.setFocusedPerson)
+  const focusedPersonId = useTreeStore((s) => s.focusedPersonId)
   const setViewport = useTreeStore((s) => s.setViewport)
   const toggleDetailPanel = useUiStore((s) => s.toggleDetailPanel)
   const detailPanelOpen = useUiStore((s) => s.detailPanelOpen)
   const setCenterOnPerson = useTreeStore((s) => s.setCenterOnPerson)
+  const timeFilter = useTreeStore((s) => s.timeFilter)
+  const pendingCenterPersonId = useTreeStore((s) => s.pendingCenterPersonId)
+  const setPendingCenterPersonId = useTreeStore((s) => s.setPendingCenterPersonId)
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<PersonNodeType>([])
+  const [nodes, setNodes, onNodesChange] = useNodesState<CoupleNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<TreeEdge>([])
   const [layoutReady, setLayoutReady] = useState(false)
+  const [generationMap, setGenerationMap] = useState<Map<string, number>>(new Map())
+  const [personToUnit, setPersonToUnit] = useState<Map<string, string>>(new Map())
+  const [units, setUnits] = useState<FamilyUnit[]>([])
+  const paneClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const skipNextFitView = useRef(false)
+
+  // --- Compute visibility sets ---
+
+  const timeVisiblePersonIds = useMemo<Set<string> | null>(() => {
+    if (!timeFilter) return null
+    const ids = new Set<string>()
+    for (const n of apiNodes) {
+      if (!n.data.birth_date) {
+        ids.add(n.id)
+        continue
+      }
+      const year = new Date(n.data.birth_date).getFullYear()
+      if (year >= timeFilter.from && year <= timeFilter.to) {
+        ids.add(n.id)
+      }
+    }
+    return ids
+  }, [apiNodes, timeFilter])
+
+  const directLinePersonIds = useMemo<Set<string> | null>(() => {
+    if (!focusedPersonId) return null
+    return computeDirectLinePersonIds(focusedPersonId, apiEdges)
+  }, [focusedPersonId, apiEdges])
+
+  // Combined visibility at person level, then convert to unit IDs
+  const visibleUnitIds = useMemo<Set<string> | null>(() => {
+    let visiblePersonIds: Set<string> | null = null
+
+    if (timeVisiblePersonIds && directLinePersonIds) {
+      visiblePersonIds = new Set<string>()
+      for (const id of timeVisiblePersonIds) {
+        if (directLinePersonIds.has(id)) visiblePersonIds.add(id)
+      }
+    } else {
+      visiblePersonIds = timeVisiblePersonIds ?? directLinePersonIds
+    }
+
+    if (!visiblePersonIds) return null
+    return personIdsToUnitIds(visiblePersonIds, personToUnit)
+  }, [timeVisiblePersonIds, directLinePersonIds, personToUnit])
 
   // Compute layout when API data changes
   useEffect(() => {
     if (apiNodes.length === 0) return
 
-    let cancelled = false
+    setLayoutReady(false)
 
-    getLayoutedElements(apiNodes, apiEdges)
-      .then((result) => {
-        if (cancelled) return
-        console.log("[tree] calling setNodes with", result.nodes.length, "nodes")
-        setNodes(result.nodes)
-        setEdges(result.edges)
-        setLayoutReady(true)
-        console.log("[tree] setNodes/setEdges done, layoutReady=true")
-      })
-      .catch((err) => {
-        console.error("Layout failed:", err)
-      })
-
-    return () => {
-      cancelled = true
-    }
+    const result = computeLayout(apiNodes, apiEdges)
+    setNodes(result.nodes)
+    setEdges(result.edges)
+    setGenerationMap(result.generationMap)
+    setPersonToUnit(result.personToUnit)
+    setUnits(result.units)
+    setLayoutReady(true)
   }, [apiNodes, apiEdges, setNodes, setEdges])
+
+  // Build generation label nodes
+  const generationLabelNodes = useMemo(() => {
+    if (!layoutReady || nodes.length === 0 || generationMap.size === 0) return []
+
+    let minX = Infinity
+    const tierYs = new Set<number>()
+    const tierToGen = new Map<number, number>()
+
+    for (const node of nodes) {
+      if (node.type !== "coupleNode") continue
+      if (node.position.x < minX) minX = node.position.x
+      tierYs.add(node.position.y)
+
+      // Get generation from the primary person of the unit
+      const unit = units.find((u) => u.id === node.id)
+      if (unit) {
+        const gen = generationMap.get(unit.primaryId)
+        if (gen !== undefined) {
+          tierToGen.set(node.position.y, gen)
+        }
+      }
+    }
+
+    const sortedTiers = [...tierYs].sort((a, b) => a - b)
+    const nodeHeight = COUPLE_NODE_HEIGHT
+
+    return sortedTiers.map((tierY) => {
+      const gen = tierToGen.get(tierY) ?? 0
+      return {
+        id: `gen-label-${tierY}`,
+        type: "generationLabel" as const,
+        position: { x: minX - 100, y: tierY + nodeHeight / 2 - 8 },
+        data: { label: `Gen ${gen + 1}` },
+        selectable: false,
+        draggable: false,
+        connectable: false,
+        style: { width: 80, height: 16, zIndex: -1 },
+      }
+    })
+  }, [layoutReady, nodes, generationMap, units])
+
+  // Combine person nodes + generation labels
+  const allNodes = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return [...nodes, ...generationLabelNodes] as any[]
+  }, [nodes, generationLabelNodes])
+
+  // Apply visibility + direct-line flags whenever filters change
+  useEffect(() => {
+    if (!layoutReady) return
+
+    setNodes((prev) =>
+      prev.map((n) => {
+        const unit = units.find((u) => u.id === n.id)
+        const primaryDirect = directLinePersonIds ? directLinePersonIds.has(unit?.primaryId ?? "") : false
+        const spouseDirect = directLinePersonIds && unit?.spouseId ? directLinePersonIds.has(unit.spouseId) : false
+
+        return {
+          ...n,
+          hidden: visibleUnitIds ? !visibleUnitIds.has(n.id) : false,
+          data: {
+            ...n.data,
+            primaryIsDirectLine: primaryDirect,
+            spouseIsDirectLine: spouseDirect,
+            primaryIsFocused: focusedPersonId === unit?.primaryId,
+            spouseIsFocused: focusedPersonId === unit?.spouseId,
+          },
+        }
+      }),
+    )
+
+    setEdges((prev) =>
+      prev.map((e) => {
+        const sourceUnit = units.find((u) => u.id === e.source)
+        const targetUnit = units.find((u) => u.id === e.target)
+        const isDirectLine = directLinePersonIds
+          ? (() => {
+              if (!sourceUnit || !targetUnit) return false
+              const sourceHasDirect = directLinePersonIds.has(sourceUnit.primaryId) || (sourceUnit.spouseId ? directLinePersonIds.has(sourceUnit.spouseId) : false)
+              const targetHasDirect = directLinePersonIds.has(targetUnit.primaryId) || (targetUnit.spouseId ? directLinePersonIds.has(targetUnit.spouseId) : false)
+              return sourceHasDirect && targetHasDirect
+            })()
+          : false
+
+        return {
+          ...e,
+          hidden: visibleUnitIds
+            ? !visibleUnitIds.has(e.source) || !visibleUnitIds.has(e.target)
+            : false,
+          data: {
+            isDirectLine,
+            childNodeIds: e.data?.childNodeIds ?? [],
+            parentNodeId: e.data?.parentNodeId ?? "",
+          },
+        }
+      }),
+    )
+
+    if (skipNextFitView.current) {
+      skipNextFitView.current = false
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      if (visibleUnitIds) {
+        const visibleRfNodes = Array.from(visibleUnitIds).map((id) => ({ id }))
+        fitView({ nodes: visibleRfNodes, duration: 800, padding: 0.2 })
+      } else {
+        fitView({ duration: 800, padding: 0.2 })
+      }
+    }, 50)
+
+    return () => clearTimeout(timeout)
+  }, [layoutReady, visibleUnitIds, directLinePersonIds, focusedPersonId, setNodes, setEdges, fitView, units])
 
   // Set focused person from prop
   useEffect(() => {
@@ -193,17 +323,45 @@ function FamilyTreeCanvasInner({
   useEffect(() => {
     if (!layoutReady) return
     setCenterOnPerson((personId: string) => {
-      const node = nodes.find((n) => n.id === personId)
+      const unitId = personToUnit.get(personId)
+      if (!unitId) return
+      const node = nodes.find((n) => n.id === unitId)
       if (node) {
+        const w = node.style?.width as number ?? PERSON_WIDTH
+        const h = node.style?.height as number ?? PERSON_NODE_HEIGHT
         setCenter(
-          node.position.x + NODE_WIDTH / 2,
-          node.position.y + NODE_HEIGHT / 2,
+          node.position.x + w / 2,
+          node.position.y + h / 2,
           { zoom: 1.2, duration: 600 },
         )
       }
     })
     return () => setCenterOnPerson(null)
-  }, [layoutReady, nodes, setCenter, setCenterOnPerson])
+  }, [layoutReady, nodes, personToUnit, setCenter, setCenterOnPerson])
+
+  // Consume pendingCenterPersonId after layout
+  useEffect(() => {
+    if (!layoutReady || !pendingCenterPersonId) return
+    const unitId = personToUnit.get(pendingCenterPersonId)
+    if (!unitId) { setPendingCenterPersonId(null); return }
+    const node = nodes.find((n) => n.id === unitId)
+    if (node) {
+      const timeout = setTimeout(() => {
+        const w = node.style?.width as number ?? PERSON_WIDTH
+        const h = node.style?.height as number ?? PERSON_NODE_HEIGHT
+        setCenter(
+          node.position.x + w / 2,
+          node.position.y + h / 2,
+          { zoom: 1.2, duration: 600 },
+        )
+        setFocusedPerson(pendingCenterPersonId)
+        if (!detailPanelOpen) toggleDetailPanel()
+      }, 200)
+      setPendingCenterPersonId(null)
+      return () => clearTimeout(timeout)
+    }
+    setPendingCenterPersonId(null)
+  }, [layoutReady, pendingCenterPersonId, nodes, personToUnit, setCenter, setFocusedPerson, detailPanelOpen, toggleDetailPanel, setPendingCenterPersonId])
 
   // Fit view once layout is ready
   useEffect(() => {
@@ -211,42 +369,83 @@ function FamilyTreeCanvasInner({
 
     const timeout = setTimeout(() => {
       if (focusPersonId) {
-        const focusNode = nodes.find((n) => n.id === focusPersonId)
-        if (focusNode) {
-          setCenter(
-            focusNode.position.x + NODE_WIDTH / 2,
-            focusNode.position.y + NODE_HEIGHT / 2,
-            { zoom: 1.2, duration: 600 },
-          )
-          return
+        const unitId = personToUnit.get(focusPersonId)
+        if (unitId) {
+          const focusNode = nodes.find((n) => n.id === unitId)
+          if (focusNode) {
+            const w = focusNode.style?.width as number ?? PERSON_WIDTH
+            const h = focusNode.style?.height as number ?? PERSON_NODE_HEIGHT
+            setCenter(
+              focusNode.position.x + w / 2,
+              focusNode.position.y + h / 2,
+              { zoom: 1.0, duration: 800 },
+            )
+            return
+          }
         }
       }
-      fitView({ duration: 600, padding: 0.2 })
+      fitView({ duration: 800, padding: 0.2 })
     }, 100)
 
     return () => clearTimeout(timeout)
-  }, [layoutReady, nodes, focusPersonId, fitView, setCenter])
+  }, [layoutReady, nodes, focusPersonId, personToUnit, fitView, setCenter])
 
-  const onNodeClick: NodeMouseHandler<PersonNodeType> = useCallback(
-    (_event, node) => {
-      setFocusedPerson(node.id)
+  // Click on a couple node: figure out which person was clicked
+  const onNodeClick: NodeMouseHandler<CoupleNode> = useCallback(
+    (event, node) => {
+      if (paneClickTimer.current) {
+        clearTimeout(paneClickTimer.current)
+        paneClickTimer.current = null
+      }
+      skipNextFitView.current = true
+
+      // Determine which person in the couple was clicked
+      const nodeData = node.data
+      let clickedPersonId = nodeData.primaryId
+
+      if (nodeData.isCouple && nodeData.spouseId) {
+        // Get click position relative to node
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+        const clickX = event.clientX - rect.left
+        const halfWidth = rect.width / 2
+
+        if (clickX > halfWidth) {
+          clickedPersonId = nodeData.spouseId
+        }
+      }
+
+      setFocusedPerson(clickedPersonId)
       if (!detailPanelOpen) {
         toggleDetailPanel()
       }
+
+      const w = node.style?.width as number ?? PERSON_WIDTH
+      const h = node.style?.height as number ?? PERSON_NODE_HEIGHT
       setCenter(
-        node.position.x + NODE_WIDTH / 2,
-        node.position.y + NODE_HEIGHT / 2,
-        { zoom: 1.2, duration: 400 },
+        node.position.x + w / 2,
+        node.position.y + h / 2,
+        { zoom: 1.4, duration: 400 },
       )
     },
     [setFocusedPerson, detailPanelOpen, toggleDetailPanel, setCenter],
   )
 
-  const onNodeDoubleClick: NodeMouseHandler<PersonNodeType> = useCallback(
-    (_event, node) => {
+  const onNodeDoubleClick: NodeMouseHandler<CoupleNode> = useCallback(
+    (event, node) => {
+      const nodeData = node.data
+      let clickedPersonId = nodeData.primaryId
+
+      if (nodeData.isCouple && nodeData.spouseId) {
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+        const clickX = event.clientX - rect.left
+        if (clickX > rect.width / 2) {
+          clickedPersonId = nodeData.spouseId
+        }
+      }
+
       navigate({
         to: "/person/$personId",
-        params: { personId: node.id },
+        params: { personId: clickedPersonId },
       } as never)
     },
     [navigate],
@@ -259,21 +458,36 @@ function FamilyTreeCanvasInner({
     [setViewport],
   )
 
+  const onPaneClick = useCallback(() => {
+    if (paneClickTimer.current) {
+      clearTimeout(paneClickTimer.current)
+    }
+    paneClickTimer.current = setTimeout(() => {
+      setFocusedPerson(null)
+      if (detailPanelOpen) {
+        toggleDetailPanel()
+      }
+      paneClickTimer.current = null
+    }, 150)
+  }, [setFocusedPerson, detailPanelOpen, toggleDetailPanel])
+
   return (
+    <div className={`h-full w-full transition-opacity duration-300 ${layoutReady ? "opacity-100" : "opacity-50"}`}>
     <ReactFlow
-      nodes={nodes}
+      nodes={allNodes}
       edges={edges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeClick={onNodeClick}
       onNodeDoubleClick={onNodeDoubleClick}
+      onPaneClick={onPaneClick}
       onMoveEnd={onMoveEnd}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       fitView
       fitViewOptions={{ padding: 0.2 }}
-      minZoom={0.1}
-      maxZoom={2}
+      minZoom={0.15}
+      maxZoom={1.8}
       proOptions={{ hideAttribution: true }}
       className="family-tree-canvas"
     >
@@ -299,6 +513,7 @@ function FamilyTreeCanvasInner({
       />
       <TreeControls />
     </ReactFlow>
+    </div>
   )
 }
 

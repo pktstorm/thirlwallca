@@ -46,9 +46,9 @@ function PersonNodeComponent({ data, id }: NodeProps) {
   // --- Focused variant ---
   if (isFocused) {
     return (
-      <div className="relative">
-        {/* Glow halo */}
-        <div className="absolute -inset-4 rounded-3xl bg-primary/20 blur-xl pointer-events-none" />
+      <div className="relative transition-transform duration-200">
+        {/* Pulsing glow halo */}
+        <div className="absolute -inset-4 rounded-3xl bg-primary/20 blur-xl pointer-events-none animate-pulse-line" />
 
         <div
           className={cn(
@@ -64,26 +64,32 @@ function PersonNodeComponent({ data, id }: NodeProps) {
           </div>
 
           {/* Photo or initials */}
-          {nodeData.profile_photo_url ? (
-            <img
-              src={nodeData.profile_photo_url}
-              alt={fullName}
-              className="w-16 h-16 rounded-full object-cover ring-4 ring-primary shadow-md dark:shadow-none"
-            />
-          ) : (
-            <div
-              className={cn(
-                "w-16 h-16 rounded-full flex items-center justify-center ring-4 ring-primary shadow-md dark:shadow-none text-lg font-bold",
-                nodeData.gender === "female"
-                  ? "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300"
-                  : nodeData.gender === "male"
-                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                    : "bg-sage-100 text-sage-800 dark:bg-dark-surface dark:text-dark-text",
-              )}
-            >
-              {initials}
-            </div>
-          )}
+          <div className="relative">
+            {nodeData.profile_photo_url ? (
+              <img
+                src={nodeData.profile_photo_url}
+                alt={fullName}
+                className="w-16 h-16 rounded-full object-cover ring-4 ring-primary shadow-md dark:shadow-none"
+              />
+            ) : (
+              <div
+                className={cn(
+                  "w-16 h-16 rounded-full flex items-center justify-center ring-4 ring-primary shadow-md dark:shadow-none text-lg font-bold",
+                  nodeData.gender === "female"
+                    ? "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300"
+                    : nodeData.gender === "male"
+                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                      : "bg-sage-100 text-sage-800 dark:bg-dark-surface dark:text-dark-text",
+                )}
+              >
+                {initials}
+              </div>
+            )}
+            {/* Living indicator */}
+            {nodeData.is_living && (
+              <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-primary rounded-full border-2 border-white dark:border-dark-card shadow-sm" />
+            )}
+          </div>
 
           {/* Name */}
           <div className="text-center">
@@ -134,20 +140,14 @@ function PersonNodeComponent({ data, id }: NodeProps) {
   const hasPhoto = !!nodeData.profile_photo_url
 
   return (
-    <div className="relative">
-      {/* Photo overlay extending left of card */}
-      {hasPhoto && (
-        <img
-          src={nodeData.profile_photo_url!}
-          alt={fullName}
-          className="absolute -left-5 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full object-cover border-2 border-white dark:border-dark-card shadow-md z-10"
-        />
-      )}
-
+    <div className="relative group">
+      {/* Photo — contained inside card */}
       <div
         className={cn(
-          "bg-white dark:bg-dark-card rounded-xl border shadow-sm dark:shadow-none py-2 flex items-center gap-3 min-w-[220px] transition-all duration-200",
-          hasPhoto ? "pl-8 pr-3" : "px-3",
+          "bg-white dark:bg-dark-card rounded-xl border shadow-sm dark:shadow-none py-2 flex items-center gap-3 min-w-[220px]",
+          "transition-all duration-200",
+          "group-hover:scale-[1.03] group-hover:shadow-md dark:group-hover:shadow-black/20 group-hover:border-sage-300 dark:group-hover:border-dark-text-muted/30",
+          "px-3",
           isDirectLine && !isCurrentUser
             ? "border-sage-200 dark:border-dark-border border-l-4 border-l-primary"
             : isCurrentUser
@@ -156,21 +156,33 @@ function PersonNodeComponent({ data, id }: NodeProps) {
           !isFocused && "opacity-80 hover:opacity-100",
         )}
       >
-        {/* Initials only when no photo */}
-        {!hasPhoto && (
-          <div
-            className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold",
-              nodeData.gender === "female"
-                ? "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300"
-                : nodeData.gender === "male"
-                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                  : "bg-sage-100 text-sage-800 dark:bg-dark-surface dark:text-dark-text",
-            )}
-          >
-            {initials}
-          </div>
-        )}
+        {/* Avatar */}
+        <div className="relative flex-shrink-0">
+          {hasPhoto ? (
+            <img
+              src={nodeData.profile_photo_url!}
+              alt={fullName}
+              className="w-10 h-10 rounded-full object-cover border border-sage-200 dark:border-dark-border"
+            />
+          ) : (
+            <div
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold",
+                nodeData.gender === "female"
+                  ? "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300"
+                  : nodeData.gender === "male"
+                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                    : "bg-sage-100 text-sage-800 dark:bg-dark-surface dark:text-dark-text",
+              )}
+            >
+              {initials}
+            </div>
+          )}
+          {/* Living indicator */}
+          {nodeData.is_living && (
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full border-2 border-white dark:border-dark-card" />
+          )}
+        </div>
 
         {/* Text */}
         <div className="flex-1 min-w-0">

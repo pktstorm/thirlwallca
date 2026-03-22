@@ -26,6 +26,8 @@ import {
   GitBranch,
   Camera,
   Loader2,
+  Trash2,
+  Plus,
 } from "lucide-react"
 import { api } from "../../lib/api"
 import { AppHeader } from "../../components/layout/AppHeader"
@@ -34,6 +36,7 @@ import { useAuthStore } from "../../stores/authStore"
 import type { Person } from "../../types/person"
 import type { Relationship } from "../../types/relationship"
 import { EditPersonModal } from "../../components/person/EditPersonModal"
+import { AddRelationshipModal } from "../../components/person/AddRelationshipModal"
 
 export const Route = createFileRoute("/_authenticated/person/$personId")({
   component: PersonProfilePage,
@@ -78,6 +81,7 @@ interface PersonApiResponse {
   military_service: string | null
   burial_location: string | null
   notes: string | null
+  birth_notes: string | null
   created_at: string
   updated_at: string
 }
@@ -101,6 +105,7 @@ interface RelationshipApiResponse {
   relationship: "parent_child" | "spouse"
   marriage_date: string | null
   divorce_date: string | null
+  marriage_place_text: string | null
   notes: string | null
 }
 
@@ -158,6 +163,7 @@ function mapApiPerson(data: PersonApiResponse): Person {
     militaryService: data.military_service ?? null,
     burialLocation: data.burial_location ?? null,
     notes: data.notes ?? null,
+    birthNotes: data.birth_notes ?? null,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   }
@@ -171,6 +177,7 @@ function mapApiRelationship(data: RelationshipApiResponse): Relationship {
     relationship: data.relationship,
     marriageDate: data.marriage_date,
     divorceDate: data.divorce_date,
+    marriagePlaceText: data.marriage_place_text ?? null,
     notes: data.notes,
   }
 }
@@ -299,50 +306,99 @@ function groupRelationships(
 
 // ── Components ──
 
-function PersonMiniCard({ person }: { person: Person }) {
+function PersonMiniCard({
+  person,
+  relationship,
+  canEdit,
+  onDelete,
+}: {
+  person: Person
+  relationship: Relationship
+  canEdit: boolean
+  onDelete: (relId: string) => void
+}) {
+  const [showConfirm, setShowConfirm] = useState(false)
   const birthYear = extractYear(person.birthDate)
   const deathYear = extractYear(person.deathDate)
 
   return (
-    <Link
-      to="/person/$personId"
-      params={{ personId: person.id }}
-      className="flex items-center gap-3 bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-3 hover:bg-white dark:hover:bg-dark-card hover:border-primary/40 hover:shadow-md transition-all group"
-    >
-      {/* Mini avatar */}
-      {person.profilePhotoUrl ? (
-        <img
-          src={person.profilePhotoUrl}
-          alt={buildFullName(person)}
-          className="w-10 h-10 rounded-full object-cover border-2 border-sage-200 dark:border-dark-border group-hover:border-primary flex-shrink-0 transition-colors"
-        />
-      ) : (
-        <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold border-2 border-sage-200 dark:border-dark-border group-hover:border-primary transition-colors ${getInitialsBgColor(person.gender)}`}
-        >
-          {getInitials(person.firstName, person.lastName)}
+    <div className="relative bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-3 hover:bg-white dark:hover:bg-dark-card hover:border-primary/40 hover:shadow-md transition-all group">
+      <Link
+        to="/person/$personId"
+        params={{ personId: person.id }}
+        className="flex items-center gap-3"
+      >
+        {/* Mini avatar */}
+        {person.profilePhotoUrl ? (
+          <img
+            src={person.profilePhotoUrl}
+            alt={buildFullName(person)}
+            className="w-10 h-10 rounded-full object-cover border-2 border-sage-200 dark:border-dark-border group-hover:border-primary flex-shrink-0 transition-colors"
+          />
+        ) : (
+          <div
+            className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold border-2 border-sage-200 dark:border-dark-border group-hover:border-primary transition-colors ${getInitialsBgColor(person.gender)}`}
+          >
+            {getInitials(person.firstName, person.lastName)}
+          </div>
+        )}
+
+        {/* Name + dates */}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-earth-900 dark:text-dark-text truncate group-hover:text-primary-dark transition-colors">
+            {buildFullName(person)}
+          </p>
+          {(birthYear || deathYear) && (
+            <p className="text-xs text-sage-400 dark:text-dark-text-muted">
+              {person.birthDateApprox && "c. "}
+              {birthYear ?? "?"}
+              {" \u2013 "}
+              {person.isLiving
+                ? "Present"
+                : `${person.deathDateApprox ? "c. " : ""}${deathYear ?? "?"}`}
+            </p>
+          )}
+          {relationship.marriagePlaceText && (
+            <p className="text-xs text-sage-400 dark:text-dark-text-muted flex items-center gap-1 mt-0.5">
+              <MapPin className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{relationship.marriagePlaceText}</span>
+            </p>
+          )}
         </div>
+
+        <ChevronRight className="h-4 w-4 text-sage-300 dark:text-dark-text-muted group-hover:text-primary flex-shrink-0 transition-colors" />
+      </Link>
+
+      {/* Remove button */}
+      {canEdit && !showConfirm && (
+        <button
+          onClick={(e) => { e.preventDefault(); setShowConfirm(true) }}
+          className="absolute top-2 right-2 p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 text-sage-300 hover:text-red-500 transition-all z-10"
+          title="Remove relationship"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       )}
 
-      {/* Name + dates */}
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-earth-900 dark:text-dark-text truncate group-hover:text-primary-dark transition-colors">
-          {buildFullName(person)}
-        </p>
-        {(birthYear || deathYear) && (
-          <p className="text-xs text-sage-400 dark:text-dark-text-muted">
-            {person.birthDateApprox && "c. "}
-            {birthYear ?? "?"}
-            {" \u2013 "}
-            {person.isLiving
-              ? "Present"
-              : `${person.deathDateApprox ? "c. " : ""}${deathYear ?? "?"}`}
-          </p>
-        )}
-      </div>
-
-      <ChevronRight className="h-4 w-4 text-sage-300 dark:text-dark-text-muted group-hover:text-primary flex-shrink-0 transition-colors" />
-    </Link>
+      {/* Inline delete confirmation */}
+      {showConfirm && (
+        <div className="absolute inset-0 bg-white/95 dark:bg-dark-card/95 backdrop-blur-sm rounded-xl flex items-center justify-center gap-2 px-3 z-20">
+          <p className="text-xs text-red-700 dark:text-red-400 font-medium">Remove?</p>
+          <button
+            onClick={() => onDelete(relationship.id)}
+            className="px-2.5 py-1 bg-red-500 text-white text-xs font-medium rounded-md hover:bg-red-600 transition-colors"
+          >
+            Remove
+          </button>
+          <button
+            onClick={() => setShowConfirm(false)}
+            className="px-2.5 py-1 bg-sage-100 dark:bg-dark-surface text-sage-600 dark:text-dark-text-muted text-xs font-medium rounded-md hover:bg-sage-200 dark:hover:bg-dark-border transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -350,10 +406,14 @@ function RelationshipGroup({
   title,
   icon,
   items,
+  canEdit,
+  onDelete,
 }: {
   title: string
   icon: React.ReactNode
   items: { relationship: Relationship; person: Person }[]
+  canEdit: boolean
+  onDelete: (relId: string) => void
 }) {
   if (items.length === 0) return null
 
@@ -364,8 +424,14 @@ function RelationshipGroup({
         {title}
       </h4>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {items.map(({ person }) => (
-          <PersonMiniCard key={person.id} person={person} />
+        {items.map(({ relationship, person }) => (
+          <PersonMiniCard
+            key={relationship.id}
+            person={person}
+            relationship={relationship}
+            canEdit={canEdit}
+            onDelete={onDelete}
+          />
         ))}
       </div>
     </div>
@@ -380,6 +446,7 @@ function PersonProfilePage() {
   const user = useAuthStore((s) => s.user)
   const canEdit = user?.role === "admin" || user?.role === "editor"
   const [editOpen, setEditOpen] = useState(false)
+  const [addRelOpen, setAddRelOpen] = useState(false)
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false)
   const [photoUploading, setPhotoUploading] = useState(false)
   const [photoProgress, setPhotoProgress] = useState(0)
@@ -450,6 +517,17 @@ function PersonProfilePage() {
     enabled: !!person,
   })
 
+  const deleteRelMutation = useMutation({
+    mutationFn: async (relationshipId: string) => {
+      await api.delete(`/relationships/${relationshipId}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["relationships", personId] })
+      queryClient.invalidateQueries({ queryKey: ["relatedPersons", personId] })
+      queryClient.invalidateQueries({ queryKey: ["tree"] })
+    },
+  })
+
   const linkMutation = useMutation({
     mutationFn: async () => {
       const res = await api.put("/auth/me/linked-person", { person_id: personId })
@@ -484,6 +562,18 @@ function PersonProfilePage() {
       setLinkedPersonId(null)
       setShowUnlinkConfirm(false)
       queryClient.invalidateQueries({ queryKey: ["tree"] })
+    },
+  })
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/persons/${personId}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tree"] })
+      navigate({ to: "/tree" })
     },
   })
 
@@ -827,6 +917,15 @@ function PersonProfilePage() {
                   {linkMutation.isPending ? "Linking..." : "This Is Me"}
                 </button>
               ) : null}
+              {canEdit && user?.linkedPersonId !== personId && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="inline-flex items-center justify-center gap-2 bg-red-500/20 backdrop-blur-sm text-red-300 font-bold text-xs uppercase tracking-wider px-5 py-2.5 rounded-lg border border-red-500/30 hover:bg-red-500/30 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -852,6 +951,11 @@ function PersonProfilePage() {
                 <Calendar className="h-3.5 w-3.5" />
                 {formatDate(person.birthDate, person.birthDateApprox)}
               </p>
+              {person.birthNotes && (
+                <p className="text-xs text-sage-400 dark:text-dark-text-muted mt-1 italic">
+                  {person.birthNotes}
+                </p>
+              )}
             </div>
           </div>
 
@@ -1041,10 +1145,21 @@ function PersonProfilePage() {
 
         {/* Relationships section */}
         <section className="space-y-5">
-          <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
-            <Users className="h-4 w-4" />
-            Family
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
+              <Users className="h-4 w-4" />
+              Family
+            </h3>
+            {canEdit && (
+              <button
+                onClick={() => setAddRelOpen(true)}
+                className="flex items-center gap-1.5 text-xs font-medium text-primary-dark dark:text-primary hover:text-primary transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Relationship
+              </button>
+            )}
+          </div>
 
           {!relationships && !grouped && (
             <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-6 text-center shadow-sm">
@@ -1061,6 +1176,8 @@ function PersonProfilePage() {
                 title="Parents"
                 icon={<User className="h-3.5 w-3.5" />}
                 items={grouped.parents}
+                canEdit={!!canEdit}
+                onDelete={(id) => deleteRelMutation.mutate(id)}
               />
               <RelationshipGroup
                 title={
@@ -1068,11 +1185,15 @@ function PersonProfilePage() {
                 }
                 icon={<Heart className="h-3.5 w-3.5" />}
                 items={grouped.spouses}
+                canEdit={!!canEdit}
+                onDelete={(id) => deleteRelMutation.mutate(id)}
               />
               <RelationshipGroup
                 title="Children"
                 icon={<Users className="h-3.5 w-3.5" />}
                 items={grouped.children}
+                canEdit={!!canEdit}
+                onDelete={(id) => deleteRelMutation.mutate(id)}
               />
 
               {grouped.parents.length === 0 &&
@@ -1193,13 +1314,56 @@ function PersonProfilePage() {
         </section>
       </div>
 
+      {/* Delete confirmation modal */}
+      {showDeleteConfirm && person && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeleteConfirm(false)} />
+          <div className="relative bg-white dark:bg-dark-card rounded-xl shadow-xl border border-sage-200 dark:border-dark-border p-6 max-w-sm w-full">
+            <p className="text-base font-semibold text-earth-900 dark:text-dark-text mb-1">
+              Delete {person.firstName} {person.lastName}?
+            </p>
+            <p className="text-sm text-sage-400 dark:text-dark-text-muted mb-4 leading-relaxed">
+              This will permanently delete this person and all their relationships, timeline events, and comments.
+            </p>
+            {deleteMutation.isError && (
+              <p className="text-xs text-red-600 mb-3">
+                {(deleteMutation.error as Error)?.message || "Delete failed"}
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="flex-1 px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-2 bg-sage-100 dark:bg-dark-surface text-sage-600 dark:text-dark-text-muted text-sm font-medium rounded-lg hover:bg-sage-200 dark:hover:bg-dark-border transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {canEdit && person && (
-        <EditPersonModal
-          person={person}
-          personId={personId}
-          open={editOpen}
-          onClose={() => setEditOpen(false)}
-        />
+        <>
+          <EditPersonModal
+            person={person}
+            personId={personId}
+            open={editOpen}
+            onClose={() => setEditOpen(false)}
+          />
+          <AddRelationshipModal
+            open={addRelOpen}
+            onClose={() => setAddRelOpen(false)}
+            personId={personId}
+            personName={buildFullName(person)}
+          />
+        </>
       )}
     </div>
   )

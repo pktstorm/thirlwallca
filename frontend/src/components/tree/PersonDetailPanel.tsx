@@ -13,6 +13,8 @@ import {
   UserCheck,
   UserPlus,
   GitBranch,
+  Trash2,
+  MoreVertical,
 } from "lucide-react"
 import { api } from "../../lib/api"
 import type { Person } from "../../types/person"
@@ -61,6 +63,7 @@ interface PersonApiResponse {
   military_service: string | null
   burial_location: string | null
   notes: string | null
+  birth_notes: string | null
   created_at: string
   updated_at: string
 }
@@ -96,6 +99,7 @@ function mapApiPerson(data: PersonApiResponse): Person {
     militaryService: data.military_service ?? null,
     burialLocation: data.burial_location ?? null,
     notes: data.notes ?? null,
+    birthNotes: data.birth_notes ?? null,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   }
@@ -129,6 +133,10 @@ export function PersonDetailPanel({ personId, onClose, onCenterOnTree }: PersonD
   const setLinkedPersonId = useAuthStore((s) => s.setLinkedPersonId)
   const queryClient = useQueryClient()
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showKebab, setShowKebab] = useState(false)
+  const kebabRef = useRef<HTMLDivElement>(null)
+  const canEdit = user?.role === "admin" || user?.role === "editor"
 
   const linkMutation = useMutation({
     mutationFn: async () => {
@@ -150,6 +158,17 @@ export function PersonDetailPanel({ personId, onClose, onCenterOnTree }: PersonD
       setLinkedPersonId(null)
       setShowUnlinkConfirm(false)
       queryClient.invalidateQueries({ queryKey: ["tree"] })
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/persons/${personId}`)
+    },
+    onSuccess: () => {
+      setShowDeleteConfirm(false)
+      queryClient.invalidateQueries({ queryKey: ["tree"] })
+      onClose()
     },
   })
 
@@ -192,13 +211,28 @@ export function PersonDetailPanel({ personId, onClose, onCenterOnTree }: PersonD
   // Close on Escape key
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose()
+      if (e.key === "Escape") {
+        if (showKebab) { setShowKebab(false); return }
+        onClose()
+      }
     }
     if (isOpen) {
       document.addEventListener("keydown", handleKeyDown)
       return () => document.removeEventListener("keydown", handleKeyDown)
     }
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, showKebab])
+
+  // Close kebab on click outside
+  useEffect(() => {
+    if (!showKebab) return
+    function handleClick(e: MouseEvent) {
+      if (kebabRef.current && !kebabRef.current.contains(e.target as Node)) {
+        setShowKebab(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [showKebab])
 
   const birthYear = person ? extractYear(person.birthDate) : null
   const deathYear = person ? extractYear(person.deathDate) : null
@@ -225,13 +259,36 @@ export function PersonDetailPanel({ personId, onClose, onCenterOnTree }: PersonD
       >
       {/* Custom scrollbar styling */}
       <div className="h-full overflow-y-auto overscroll-contain [scrollbar-width:thin] [scrollbar-color:var(--color-sage-300)_transparent] dark:[scrollbar-color:var(--color-dark-border)_transparent]">
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 z-10 p-1.5 rounded-full bg-white/80 dark:bg-dark-card hover:bg-sage-100 dark:hover:bg-dark-surface border border-sage-200 dark:border-dark-border text-sage-400 dark:text-dark-text-muted hover:text-earth-900 dark:hover:text-dark-text transition-colors shadow-sm dark:shadow-none"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        {/* Close + Kebab Buttons */}
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5">
+          {canEdit && personId && user?.linkedPersonId !== personId && (
+            <div ref={kebabRef} className="relative">
+              <button
+                onClick={() => setShowKebab(!showKebab)}
+                className="p-1.5 rounded-full bg-white/80 dark:bg-dark-card hover:bg-sage-100 dark:hover:bg-dark-surface border border-sage-200 dark:border-dark-border text-sage-400 dark:text-dark-text-muted hover:text-earth-900 dark:hover:text-dark-text transition-colors shadow-sm dark:shadow-none"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+              {showKebab && (
+                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-dark-card border border-sage-200 dark:border-dark-border rounded-lg shadow-lg dark:shadow-black/30 py-1 min-w-[160px]">
+                  <button
+                    onClick={() => { setShowKebab(false); setShowDeleteConfirm(true) }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete Person
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-full bg-white/80 dark:bg-dark-card hover:bg-sage-100 dark:hover:bg-dark-surface border border-sage-200 dark:border-dark-border text-sage-400 dark:text-dark-text-muted hover:text-earth-900 dark:hover:text-dark-text transition-colors shadow-sm dark:shadow-none"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
         {isLoading && isOpen && (
           <div className="flex items-center justify-center h-full">
@@ -390,6 +447,38 @@ export function PersonDetailPanel({ personId, onClose, onCenterOnTree }: PersonD
                 {linkMutation.isPending ? "Linking..." : "This Is Me"}
               </button>
             ) : null}
+
+            {/* ─── Delete confirmation (triggered from kebab menu) ─── */}
+            {showDeleteConfirm && (
+              <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800/30 rounded-xl p-3 space-y-2">
+                <p className="text-xs text-red-800 dark:text-red-300 font-medium">
+                  Delete {person.firstName} {person.lastName}?
+                </p>
+                <p className="text-[10px] text-red-600 dark:text-red-400 leading-relaxed">
+                  This will permanently delete this person and all their relationships, timeline events, and comments.
+                </p>
+                {deleteMutation.isError && (
+                  <p className="text-[10px] text-red-600 font-medium">
+                    {(deleteMutation.error as Error)?.message || "Delete failed"}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => deleteMutation.mutate()}
+                    disabled={deleteMutation.isPending}
+                    className="flex-1 px-3 py-1.5 bg-red-500 text-white text-xs font-medium rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                  >
+                    {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="flex-1 px-3 py-1.5 bg-white dark:bg-dark-surface text-sage-600 dark:text-dark-text-muted text-xs font-medium rounded-lg hover:bg-sage-100 dark:hover:bg-dark-card border border-sage-200 dark:border-dark-border transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* ─── Details Grid: Born + Died ─── */}
             <div className="grid grid-cols-2 gap-3">
