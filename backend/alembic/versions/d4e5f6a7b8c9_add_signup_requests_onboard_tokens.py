@@ -18,37 +18,43 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create signup_status enum using raw SQL to handle IF NOT EXISTS
-    op.execute("DO $$ BEGIN CREATE TYPE signup_status AS ENUM ('pending', 'approved', 'rejected'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
-
-    signup_status = sa.Enum("pending", "approved", "rejected", name="signup_status", create_type=False)
-
-    op.create_table(
-        "signup_requests",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("email", sa.String(255), unique=True, nullable=False),
-        sa.Column("first_name", sa.String(128), nullable=False),
-        sa.Column("last_name", sa.String(128), nullable=False),
-        sa.Column("status", signup_status, nullable=False, server_default="pending"),
-        sa.Column("reviewed_by", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=True),
-        sa.Column("reviewed_at", TIMESTAMP(timezone=True), nullable=True),
-        sa.Column("reject_reason", sa.Text, nullable=True),
-        sa.Column("created_at", TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
+    # Create signup_status enum - use DO block to handle existing type
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE signup_status AS ENUM ('pending', 'approved', 'rejected'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; "
+        "END $$"
     )
 
-    op.create_table(
-        "onboard_tokens",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("signup_request_id", UUID(as_uuid=True), sa.ForeignKey("signup_requests.id"), nullable=False),
-        sa.Column("email", sa.String(255), nullable=False),
-        sa.Column("token", sa.String(64), unique=True, nullable=False),
-        sa.Column("expires_at", TIMESTAMP(timezone=True), nullable=False),
-        sa.Column("used_at", TIMESTAMP(timezone=True), nullable=True),
-        sa.Column("created_at", TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
-    )
+    # Create tables using raw SQL for full control
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS signup_requests (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            email VARCHAR(255) NOT NULL UNIQUE,
+            first_name VARCHAR(128) NOT NULL,
+            last_name VARCHAR(128) NOT NULL,
+            status signup_status NOT NULL DEFAULT 'pending',
+            reviewed_by UUID REFERENCES users(id),
+            reviewed_at TIMESTAMPTZ,
+            reject_reason TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """)
+
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS onboard_tokens (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            signup_request_id UUID NOT NULL REFERENCES signup_requests(id),
+            email VARCHAR(255) NOT NULL,
+            token VARCHAR(64) NOT NULL UNIQUE,
+            expires_at TIMESTAMPTZ NOT NULL,
+            used_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """)
 
 
 def downgrade() -> None:
-    op.drop_table("onboard_tokens")
-    op.drop_table("signup_requests")
-    sa.Enum(name="signup_status").drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TABLE IF EXISTS onboard_tokens")
+    op.execute("DROP TABLE IF EXISTS signup_requests")
+    op.execute("DROP TYPE IF EXISTS signup_status")
