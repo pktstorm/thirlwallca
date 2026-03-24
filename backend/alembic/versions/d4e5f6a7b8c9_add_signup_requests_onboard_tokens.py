@@ -18,9 +18,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create signup_status enum
-    signup_status = sa.Enum("pending", "approved", "rejected", name="signup_status")
-    signup_status.create(op.get_bind(), checkfirst=True)
+    # Create signup_status enum using raw SQL to handle IF NOT EXISTS
+    op.execute("DO $$ BEGIN CREATE TYPE signup_status AS ENUM ('pending', 'approved', 'rejected'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
+
+    signup_status = sa.Enum("pending", "approved", "rejected", name="signup_status", create_type=False)
 
     op.create_table(
         "signup_requests",
