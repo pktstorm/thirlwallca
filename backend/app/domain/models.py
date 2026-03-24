@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import String, Text, Boolean, Integer, BigInteger, Float, Date, Enum, ForeignKey, CheckConstraint, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB, TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from app.domain.enums import Gender, UserRole, RelationshipType, MediaType, MediaStatus, NameType
+from app.domain.enums import Gender, UserRole, RelationshipType, MediaType, MediaStatus, NameType, SignupStatus
 
 
 class Base(DeclarativeBase):
@@ -249,3 +249,29 @@ class PersonAlternateName(Base):
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
 
     person = relationship("Person", back_populates="alternate_names")
+
+
+class SignupRequest(Base):
+    __tablename__ = "signup_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    first_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    last_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[SignupStatus] = mapped_column(Enum(SignupStatus, name="signup_status"), nullable=False, default=SignupStatus.PENDING)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    reject_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class OnboardToken(Base):
+    __tablename__ = "onboard_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    signup_request_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("signup_requests.id"), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)

@@ -4,6 +4,8 @@ from app.http.handlers import (
     health,
     persons,
     auth,
+    signup,
+    admin,
     relationships,
     locations,
     tree,
@@ -33,6 +35,8 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+    app.include_router(signup.router, prefix="/api/v1/auth", tags=["signup"])
+    app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(persons.router, prefix="/api/v1/persons", tags=["persons"])
     app.include_router(relationships.router, prefix="/api/v1/relationships", tags=["relationships"])
     app.include_router(locations.router, prefix="/api/v1/locations", tags=["locations"])

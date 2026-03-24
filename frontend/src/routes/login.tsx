@@ -1,6 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router"
 import { useState } from "react"
-import { Mail, Lock, Loader2 } from "lucide-react"
+import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react"
 import { signIn, signOut } from "aws-amplify/auth"
 import { api } from "../lib/api"
 import { useAuthStore } from "../stores/authStore"
@@ -15,6 +15,7 @@ function LoginPage() {
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,7 +38,6 @@ function LoginPage() {
         result.nextStep.signInStep ===
         "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED"
       ) {
-        // Redirect to change-password page for forced password change
         navigate({ to: "/change-password" })
         return
       }
@@ -134,7 +134,7 @@ function LoginPage() {
               </div>
             </div>
 
-            {/* Password field */}
+            {/* Password field with show/hide toggle */}
             <div>
               <label
                 htmlFor="password"
@@ -146,13 +146,25 @@ function LoginPage() {
                 <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface py-2.5 pl-10 pr-4 text-sm text-gray-900 dark:text-dark-text placeholder:text-gray-400 dark:placeholder:text-dark-text-muted focus:border-primary-dark focus:outline-none focus:ring-2 focus:ring-primary-dark/20"
+                  className="w-full rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface py-2.5 pl-10 pr-10 text-sm text-gray-900 dark:text-dark-text placeholder:text-gray-400 dark:placeholder:text-dark-text-muted focus:border-primary-dark focus:outline-none focus:ring-2 focus:ring-primary-dark/20"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-dark-text transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
               </div>
             </div>
 
@@ -168,6 +180,21 @@ function LoginPage() {
               {isLoading ? "Signing in..." : "Sign in"}
             </button>
           </form>
+
+          {/* Divider */}
+          <div className="mt-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200 dark:bg-dark-border" />
+            <span className="text-xs text-gray-400 dark:text-dark-text-muted">or</span>
+            <div className="h-px flex-1 bg-gray-200 dark:bg-dark-border" />
+          </div>
+
+          {/* Request Access button */}
+          <Link
+            to="/request-access"
+            className="mt-4 flex w-full items-center justify-center rounded-lg border border-gray-200 dark:border-dark-border bg-white/50 dark:bg-dark-surface/50 py-2.5 text-sm font-medium text-gray-700 dark:text-dark-text transition-colors hover:bg-gray-50 dark:hover:bg-dark-surface hover:border-gray-300"
+          >
+            Request Access
+          </Link>
 
           {/* Bottom text */}
           <p className="mt-6 text-center text-xs text-gray-400 dark:text-dark-text-muted">

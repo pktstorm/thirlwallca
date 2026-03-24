@@ -33,3 +33,8 @@ class NameType(str, enum.Enum):
     ALIAS = "alias"
     BIRTH = "birth"
     OTHER = "other"
+
+class SignupStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"

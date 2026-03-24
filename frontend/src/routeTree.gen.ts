@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RequestAccessRouteImport } from './routes/request-access'
+import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as MagicLinkRouteImport } from './routes/magic-link'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ChangePasswordRouteImport } from './routes/change-password'
@@ -21,9 +23,20 @@ import { Route as AuthenticatedMediaRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedMapRouteImport } from './routes/_authenticated/map'
 import { Route as AuthenticatedTreePersonIdRouteImport } from './routes/_authenticated/tree.$personId'
 import { Route as AuthenticatedPersonPersonIdRouteImport } from './routes/_authenticated/person.$personId'
+import { Route as AuthenticatedAdminSignupRequestsRouteImport } from './routes/_authenticated/admin.signup-requests'
 import { Route as AuthenticatedPersonPersonIdStoryEditRouteImport } from './routes/_authenticated/person.$personId_.story-edit'
 import { Route as AuthenticatedPersonPersonIdStoryRouteImport } from './routes/_authenticated/person.$personId_.story'
 
+const RequestAccessRoute = RequestAccessRouteImport.update({
+  id: '/request-access',
+  path: '/request-access',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardRoute = OnboardRouteImport.update({
+  id: '/onboard',
+  path: '/onboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MagicLinkRoute = MagicLinkRouteImport.update({
   id: '/magic-link',
   path: '/magic-link',
@@ -85,6 +98,12 @@ const AuthenticatedPersonPersonIdRoute =
     path: '/person/$personId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminSignupRequestsRoute =
+  AuthenticatedAdminSignupRequestsRouteImport.update({
+    id: '/admin/signup-requests',
+    path: '/admin/signup-requests',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedPersonPersonIdStoryEditRoute =
   AuthenticatedPersonPersonIdStoryEditRouteImport.update({
     id: '/person/$personId_/story-edit',
@@ -103,11 +122,14 @@ export interface FileRoutesByFullPath {
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
+  '/onboard': typeof OnboardRoute
+  '/request-access': typeof RequestAccessRoute
   '/map': typeof AuthenticatedMapRoute
   '/media': typeof AuthenticatedMediaRoute
   '/search': typeof AuthenticatedSearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/tree': typeof AuthenticatedTreeRouteWithChildren
+  '/admin/signup-requests': typeof AuthenticatedAdminSignupRequestsRoute
   '/person/$personId': typeof AuthenticatedPersonPersonIdRoute
   '/tree/$personId': typeof AuthenticatedTreePersonIdRoute
   '/person/$personId/story': typeof AuthenticatedPersonPersonIdStoryRoute
@@ -118,11 +140,14 @@ export interface FileRoutesByTo {
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
+  '/onboard': typeof OnboardRoute
+  '/request-access': typeof RequestAccessRoute
   '/map': typeof AuthenticatedMapRoute
   '/media': typeof AuthenticatedMediaRoute
   '/search': typeof AuthenticatedSearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/tree': typeof AuthenticatedTreeRouteWithChildren
+  '/admin/signup-requests': typeof AuthenticatedAdminSignupRequestsRoute
   '/person/$personId': typeof AuthenticatedPersonPersonIdRoute
   '/tree/$personId': typeof AuthenticatedTreePersonIdRoute
   '/person/$personId/story': typeof AuthenticatedPersonPersonIdStoryRoute
@@ -135,11 +160,14 @@ export interface FileRoutesById {
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
   '/magic-link': typeof MagicLinkRoute
+  '/onboard': typeof OnboardRoute
+  '/request-access': typeof RequestAccessRoute
   '/_authenticated/map': typeof AuthenticatedMapRoute
   '/_authenticated/media': typeof AuthenticatedMediaRoute
   '/_authenticated/search': typeof AuthenticatedSearchRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tree': typeof AuthenticatedTreeRouteWithChildren
+  '/_authenticated/admin/signup-requests': typeof AuthenticatedAdminSignupRequestsRoute
   '/_authenticated/person/$personId': typeof AuthenticatedPersonPersonIdRoute
   '/_authenticated/tree/$personId': typeof AuthenticatedTreePersonIdRoute
   '/_authenticated/person/$personId_/story': typeof AuthenticatedPersonPersonIdStoryRoute
@@ -152,11 +180,14 @@ export interface FileRouteTypes {
     | '/change-password'
     | '/login'
     | '/magic-link'
+    | '/onboard'
+    | '/request-access'
     | '/map'
     | '/media'
     | '/search'
     | '/settings'
     | '/tree'
+    | '/admin/signup-requests'
     | '/person/$personId'
     | '/tree/$personId'
     | '/person/$personId/story'
@@ -167,11 +198,14 @@ export interface FileRouteTypes {
     | '/change-password'
     | '/login'
     | '/magic-link'
+    | '/onboard'
+    | '/request-access'
     | '/map'
     | '/media'
     | '/search'
     | '/settings'
     | '/tree'
+    | '/admin/signup-requests'
     | '/person/$personId'
     | '/tree/$personId'
     | '/person/$personId/story'
@@ -183,11 +217,14 @@ export interface FileRouteTypes {
     | '/change-password'
     | '/login'
     | '/magic-link'
+    | '/onboard'
+    | '/request-access'
     | '/_authenticated/map'
     | '/_authenticated/media'
     | '/_authenticated/search'
     | '/_authenticated/settings'
     | '/_authenticated/tree'
+    | '/_authenticated/admin/signup-requests'
     | '/_authenticated/person/$personId'
     | '/_authenticated/tree/$personId'
     | '/_authenticated/person/$personId_/story'
@@ -200,10 +237,26 @@ export interface RootRouteChildren {
   ChangePasswordRoute: typeof ChangePasswordRoute
   LoginRoute: typeof LoginRoute
   MagicLinkRoute: typeof MagicLinkRoute
+  OnboardRoute: typeof OnboardRoute
+  RequestAccessRoute: typeof RequestAccessRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/request-access': {
+      id: '/request-access'
+      path: '/request-access'
+      fullPath: '/request-access'
+      preLoaderRoute: typeof RequestAccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboard': {
+      id: '/onboard'
+      path: '/onboard'
+      fullPath: '/onboard'
+      preLoaderRoute: typeof OnboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/magic-link': {
       id: '/magic-link'
       path: '/magic-link'
@@ -288,6 +341,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPersonPersonIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/signup-requests': {
+      id: '/_authenticated/admin/signup-requests'
+      path: '/admin/signup-requests'
+      fullPath: '/admin/signup-requests'
+      preLoaderRoute: typeof AuthenticatedAdminSignupRequestsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/person/$personId_/story-edit': {
       id: '/_authenticated/person/$personId_/story-edit'
       path: '/person/$personId/story-edit'
@@ -322,6 +382,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSearchRoute: typeof AuthenticatedSearchRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTreeRoute: typeof AuthenticatedTreeRouteWithChildren
+  AuthenticatedAdminSignupRequestsRoute: typeof AuthenticatedAdminSignupRequestsRoute
   AuthenticatedPersonPersonIdRoute: typeof AuthenticatedPersonPersonIdRoute
   AuthenticatedPersonPersonIdStoryRoute: typeof AuthenticatedPersonPersonIdStoryRoute
   AuthenticatedPersonPersonIdStoryEditRoute: typeof AuthenticatedPersonPersonIdStoryEditRoute
@@ -333,6 +394,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSearchRoute: AuthenticatedSearchRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTreeRoute: AuthenticatedTreeRouteWithChildren,
+  AuthenticatedAdminSignupRequestsRoute: AuthenticatedAdminSignupRequestsRoute,
   AuthenticatedPersonPersonIdRoute: AuthenticatedPersonPersonIdRoute,
   AuthenticatedPersonPersonIdStoryRoute: AuthenticatedPersonPersonIdStoryRoute,
   AuthenticatedPersonPersonIdStoryEditRoute:
@@ -349,6 +411,8 @@ const rootRouteChildren: RootRouteChildren = {
   ChangePasswordRoute: ChangePasswordRoute,
   LoginRoute: LoginRoute,
   MagicLinkRoute: MagicLinkRoute,
+  OnboardRoute: OnboardRoute,
+  RequestAccessRoute: RequestAccessRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
