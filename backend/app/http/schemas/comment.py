@@ -20,6 +20,8 @@ class CommentResponse(BaseModel):
     id: uuid.UUID
     body: str
     author_id: uuid.UUID
+    author_name: str | None = None
+    author_avatar_url: str | None = None
     person_id: uuid.UUID | None
     story_id: uuid.UUID | None
     media_id: uuid.UUID | None

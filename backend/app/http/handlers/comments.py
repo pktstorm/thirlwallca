@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps import get_db
-from app.domain.models import Comment, CommentLike
+from app.domain.models import Comment, CommentLike, User
 from app.http.schemas.comment import CommentCreate, CommentUpdate, CommentResponse
 
 router = APIRouter()
@@ -27,7 +27,35 @@ async def list_comments(
         stmt = stmt.where(Comment.media_id == media_id)
     stmt = stmt.order_by(Comment.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
-    return result.scalars().all()
+    comments = result.scalars().all()
+
+    # Enrich with author names
+    author_ids = {c.author_id for c in comments if c.author_id}
+    author_map: dict[uuid.UUID, User] = {}
+    if author_ids:
+        users_result = await db.execute(select(User).where(User.id.in_(list(author_ids))))
+        for u in users_result.scalars().all():
+            author_map[u.id] = u
+
+    enriched = []
+    for c in comments:
+        data = {
+            "id": c.id,
+            "body": c.body,
+            "author_id": c.author_id,
+            "author_name": author_map[c.author_id].display_name if c.author_id and c.author_id in author_map else None,
+            "author_avatar_url": author_map[c.author_id].avatar_url if c.author_id and c.author_id in author_map else None,
+            "person_id": c.person_id,
+            "story_id": c.story_id,
+            "media_id": c.media_id,
+            "parent_comment_id": c.parent_comment_id,
+            "likes_count": c.likes_count,
+            "created_at": c.created_at,
+            "updated_at": c.updated_at,
+        }
+        enriched.append(data)
+
+    return enriched
 
 
 @router.post("", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)

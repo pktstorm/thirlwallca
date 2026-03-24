@@ -182,6 +182,110 @@ async def delete_person(
     await db.commit()
 
 
+@router.get("/{person_id}/summary")
+async def get_person_summary(
+    person_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate an auto-summary of a person's life from their data."""
+    from app.domain.models import PersonResidence, Relationship, Story, StoryPerson, TimelineEvent, Media, MediaPerson
+
+    result = await db.execute(select(Person).where(Person.id == person_id))
+    person = result.scalar_one_or_none()
+    if not person:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
+
+    # Build life summary parts
+    parts = []
+
+    # Born
+    if person.birth_place_text and person.birth_date:
+        parts.append(f"Born {person.birth_date.year} in {person.birth_place_text}")
+    elif person.birth_date:
+        parts.append(f"Born {person.birth_date.year}")
+    elif person.birth_place_text:
+        parts.append(f"Born in {person.birth_place_text}")
+
+    # Spouses
+    spouse_result = await db.execute(
+        select(Relationship, Person).join(
+            Person,
+            ((Relationship.person_id == person_id) & (Person.id == Relationship.related_person_id)) |
+            ((Relationship.related_person_id == person_id) & (Person.id == Relationship.person_id))
+        ).where(
+            (Relationship.person_id == person_id) | (Relationship.related_person_id == person_id),
+            Relationship.relationship == "SPOUSE",
+        )
+    )
+    spouses = []
+    for rel, spouse in spouse_result.all():
+        if spouse.id != person_id:
+            name = spouse.first_name
+            if rel.marriage_date:
+                name += f" in {rel.marriage_date.year}"
+            spouses.append(name)
+    if spouses:
+        parts.append("Married " + ", ".join(spouses))
+
+    # Children count
+    child_result = await db.execute(
+        select(Relationship).where(
+            Relationship.related_person_id == person_id,
+            Relationship.relationship == "PARENT_CHILD",
+        )
+    )
+    child_count = len(child_result.all())
+    if child_count:
+        parts.append(f"{child_count} {'child' if child_count == 1 else 'children'}")
+
+    # Residences
+    res_result = await db.execute(
+        select(PersonResidence, Location)
+        .join(Location, PersonResidence.location_id == Location.id)
+        .where(PersonResidence.person_id == person_id, PersonResidence.location_id.isnot(None))
+        .order_by(PersonResidence.from_date)
+    )
+    residence_places = []
+    for _res, loc in res_result.all():
+        if loc.name and loc.name not in residence_places:
+            residence_places.append(loc.name)
+    if residence_places:
+        parts.append("Lived in " + ", ".join(residence_places[:3]))
+
+    # Death
+    if not person.is_living and person.death_place_text and person.death_date:
+        parts.append(f"Died {person.death_date.year} in {person.death_place_text}")
+    elif not person.is_living and person.death_date:
+        parts.append(f"Died {person.death_date.year}")
+
+    # Counts for quick stats
+    story_result = await db.execute(
+        select(Story.id).join(StoryPerson, Story.id == StoryPerson.story_id)
+        .where(StoryPerson.person_id == person_id, Story.published.is_(True))
+    )
+    story_count = len(story_result.all())
+
+    event_result = await db.execute(
+        select(TimelineEvent.id).where(TimelineEvent.person_id == person_id)
+    )
+    event_count = len(event_result.all())
+
+    media_result = await db.execute(
+        select(Media.id).join(MediaPerson, Media.id == MediaPerson.media_id)
+        .where(MediaPerson.person_id == person_id)
+    )
+    media_count = len(media_result.all())
+
+    return {
+        "summary": ". ".join(parts) + "." if parts else "",
+        "story_count": story_count,
+        "timeline_event_count": event_count,
+        "media_count": media_count,
+        "child_count": child_count,
+        "spouse_names": spouses,
+    }
+
+
 @router.post(
     "/{person_id}/profile-photo/upload-url",
     response_model=ProfilePhotoUploadResponse,

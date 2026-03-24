@@ -10,9 +10,7 @@ import {
   Users,
   TreePine,
   Edit,
-  Heart,
   User,
-  ChevronRight,
   ArrowRight,
   GraduationCap,
   Shield,
@@ -27,7 +25,7 @@ import {
   Camera,
   Loader2,
   Trash2,
-  Plus,
+  Map as MapIcon,
 } from "lucide-react"
 import { api } from "../../lib/api"
 import { AppHeader } from "../../components/layout/AppHeader"
@@ -37,6 +35,10 @@ import type { Person } from "../../types/person"
 import type { Relationship } from "../../types/relationship"
 import { EditPersonModal } from "../../components/person/EditPersonModal"
 import { AddRelationshipModal } from "../../components/person/AddRelationshipModal"
+import { ProfileTabs, type ProfileTab } from "../../components/person/ProfileTabs"
+import { FamilyMiniTree } from "../../components/person/FamilyMiniTree"
+import { PhotoLightbox } from "../../components/person/PhotoLightbox"
+import { TimelineEventEditor } from "../../components/person/TimelineEventEditor"
 
 export const Route = createFileRoute("/_authenticated/person/$personId")({
   component: PersonProfilePage,
@@ -304,140 +306,6 @@ function groupRelationships(
   return groups
 }
 
-// ── Components ──
-
-function PersonMiniCard({
-  person,
-  relationship,
-  canEdit,
-  onDelete,
-}: {
-  person: Person
-  relationship: Relationship
-  canEdit: boolean
-  onDelete: (relId: string) => void
-}) {
-  const [showConfirm, setShowConfirm] = useState(false)
-  const birthYear = extractYear(person.birthDate)
-  const deathYear = extractYear(person.deathDate)
-
-  return (
-    <div className="relative bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-3 hover:bg-white dark:hover:bg-dark-card hover:border-primary/40 hover:shadow-md transition-all group">
-      <Link
-        to="/person/$personId"
-        params={{ personId: person.id }}
-        className="flex items-center gap-3"
-      >
-        {/* Mini avatar */}
-        {person.profilePhotoUrl ? (
-          <img
-            src={person.profilePhotoUrl}
-            alt={buildFullName(person)}
-            className="w-10 h-10 rounded-full object-cover border-2 border-sage-200 dark:border-dark-border group-hover:border-primary flex-shrink-0 transition-colors"
-          />
-        ) : (
-          <div
-            className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold border-2 border-sage-200 dark:border-dark-border group-hover:border-primary transition-colors ${getInitialsBgColor(person.gender)}`}
-          >
-            {getInitials(person.firstName, person.lastName)}
-          </div>
-        )}
-
-        {/* Name + dates */}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-earth-900 dark:text-dark-text truncate group-hover:text-primary-dark transition-colors">
-            {buildFullName(person)}
-          </p>
-          {(birthYear || deathYear) && (
-            <p className="text-xs text-sage-400 dark:text-dark-text-muted">
-              {person.birthDateApprox && "c. "}
-              {birthYear ?? "?"}
-              {" \u2013 "}
-              {person.isLiving
-                ? "Present"
-                : `${person.deathDateApprox ? "c. " : ""}${deathYear ?? "?"}`}
-            </p>
-          )}
-          {relationship.marriagePlaceText && (
-            <p className="text-xs text-sage-400 dark:text-dark-text-muted flex items-center gap-1 mt-0.5">
-              <MapPin className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate">{relationship.marriagePlaceText}</span>
-            </p>
-          )}
-        </div>
-
-        <ChevronRight className="h-4 w-4 text-sage-300 dark:text-dark-text-muted group-hover:text-primary flex-shrink-0 transition-colors" />
-      </Link>
-
-      {/* Remove button */}
-      {canEdit && !showConfirm && (
-        <button
-          onClick={(e) => { e.preventDefault(); setShowConfirm(true) }}
-          className="absolute top-2 right-2 p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 text-sage-300 hover:text-red-500 transition-all z-10"
-          title="Remove relationship"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      )}
-
-      {/* Inline delete confirmation */}
-      {showConfirm && (
-        <div className="absolute inset-0 bg-white/95 dark:bg-dark-card/95 backdrop-blur-sm rounded-xl flex items-center justify-center gap-2 px-3 z-20">
-          <p className="text-xs text-red-700 dark:text-red-400 font-medium">Remove?</p>
-          <button
-            onClick={() => onDelete(relationship.id)}
-            className="px-2.5 py-1 bg-red-500 text-white text-xs font-medium rounded-md hover:bg-red-600 transition-colors"
-          >
-            Remove
-          </button>
-          <button
-            onClick={() => setShowConfirm(false)}
-            className="px-2.5 py-1 bg-sage-100 dark:bg-dark-surface text-sage-600 dark:text-dark-text-muted text-xs font-medium rounded-md hover:bg-sage-200 dark:hover:bg-dark-border transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function RelationshipGroup({
-  title,
-  icon,
-  items,
-  canEdit,
-  onDelete,
-}: {
-  title: string
-  icon: React.ReactNode
-  items: { relationship: Relationship; person: Person }[]
-  canEdit: boolean
-  onDelete: (relId: string) => void
-}) {
-  if (items.length === 0) return null
-
-  return (
-    <div className="space-y-3">
-      <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-400 dark:text-dark-text-muted">
-        {icon}
-        {title}
-      </h4>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {items.map(({ relationship, person }) => (
-          <PersonMiniCard
-            key={relationship.id}
-            person={person}
-            relationship={relationship}
-            canEdit={canEdit}
-            onDelete={onDelete}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // ── Main Page ──
 
 function PersonProfilePage() {
@@ -450,6 +318,8 @@ function PersonProfilePage() {
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false)
   const [photoUploading, setPhotoUploading] = useState(false)
   const [photoProgress, setPhotoProgress] = useState(0)
+  const [activeTab, setActiveTab] = useState<ProfileTab>("overview")
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
   const setLinkedPersonId = useAuthStore((s) => s.setLinkedPersonId)
@@ -517,15 +387,34 @@ function PersonProfilePage() {
     enabled: !!person,
   })
 
-  const deleteRelMutation = useMutation({
-    mutationFn: async (relationshipId: string) => {
-      await api.delete(`/relationships/${relationshipId}`)
+  // Fetch person summary (auto-generated life summary + counts)
+  const { data: personSummary } = useQuery<{
+    summary: string
+    story_count: number
+    timeline_event_count: number
+    media_count: number
+    child_count: number
+    spouse_names: string[]
+  }>({
+    queryKey: ["person-summary", personId],
+    queryFn: async () => {
+      const res = await api.get(`/persons/${personId}/summary`)
+      return res.data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["relationships", personId] })
-      queryClient.invalidateQueries({ queryKey: ["relatedPersons", personId] })
-      queryClient.invalidateQueries({ queryKey: ["tree"] })
+    enabled: !!person,
+  })
+
+  // Fetch timeline events
+  const { data: timelineEvents } = useQuery<{
+    id: string; person_id: string; title: string; description: string | null
+    event_date: string | null; event_date_approx: boolean; event_type: string | null; sort_order: number
+  }[]>({
+    queryKey: ["timeline-events", personId],
+    queryFn: async () => {
+      const res = await api.get("/timeline-events", { params: { person_id: personId } })
+      return Array.isArray(res.data) ? res.data : []
     },
+    enabled: !!person,
   })
 
   const linkMutation = useMutation({
@@ -845,13 +734,20 @@ function PersonProfilePage() {
                 </p>
               )}
 
+              {/* Relationship to you — MOST PROMINENT element */}
               {relationshipPath?.found && relationshipPath.label !== "self" && (
-                <div className="mt-2 inline-flex items-center gap-2 bg-primary/20 backdrop-blur-sm px-4 py-1.5 rounded-full border border-primary/30">
+                <div className="mt-3 inline-flex items-center gap-2 bg-primary/25 backdrop-blur-sm px-5 py-2 rounded-full border border-primary/40 shadow-lg">
                   <GitBranch className="h-4 w-4 text-primary" />
-                  <span className="text-white/90 text-sm font-medium">
+                  <span className="text-white text-sm font-bold">
                     {relationshipPath.description}
                   </span>
                 </div>
+              )}
+              {/* Auto-generated life summary */}
+              {personSummary?.summary && (
+                <p className="mt-2 text-sage-300/80 text-sm leading-relaxed max-w-xl">
+                  {personSummary.summary}
+                </p>
               )}
             </div>
 
@@ -864,6 +760,13 @@ function PersonProfilePage() {
               >
                 <TreePine className="h-4 w-4" />
                 View in Tree
+              </Link>
+              <Link
+                to="/map"
+                className="inline-flex items-center justify-center gap-2 bg-white/10 backdrop-blur-sm text-white font-bold text-xs uppercase tracking-wider px-5 py-2.5 rounded-lg border border-white/20 hover:bg-white/20 transition-colors"
+              >
+                <MapIcon className="h-4 w-4" />
+                Show on Map
               </Link>
               {canEdit && (
                 <button
@@ -931,388 +834,298 @@ function PersonProfilePage() {
         </div>
       </div>
 
-      {/* ── Main Content ── */}
+      {/* ── Tab Navigation ── */}
+      <ProfileTabs
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        storyCount={personSummary?.story_count ?? 0}
+        mediaCount={personSummary?.media_count ?? 0}
+      />
+
+      {/* ── Tab Content ── */}
       <div className="max-w-4xl mx-auto px-4 py-6 sm:px-6 sm:py-10 space-y-8 sm:space-y-10">
-        {/* Born / Died detail cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Born card */}
-          <div className="bg-white/80 dark:bg-dark-card/80 backdrop-blur-sm rounded-xl border border-sage-200 dark:border-dark-border p-5 space-y-3 shadow-sm">
-            <div className="flex items-center gap-2 text-sage-400 dark:text-dark-text-muted">
-              <MapPin className="h-4 w-4" />
-              <span className="text-xs font-bold uppercase tracking-widest">
-                Born
-              </span>
-            </div>
-            <div>
-              <p className="text-base font-medium text-earth-900 dark:text-dark-text leading-snug">
-                {person.birthPlaceText || "\u2014"}
-              </p>
-              <p className="text-sm text-sage-400 dark:text-dark-text-muted mt-1 flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5" />
-                {formatDate(person.birthDate, person.birthDateApprox)}
-              </p>
-              {person.birthNotes && (
-                <p className="text-xs text-sage-400 dark:text-dark-text-muted mt-1 italic">
-                  {person.birthNotes}
-                </p>
-              )}
-            </div>
-          </div>
 
-          {/* Died card or Living badge */}
-          {person.isLiving ? (
-            <div className="bg-primary/10 dark:bg-primary/5 rounded-xl border border-primary/20 dark:border-primary/15 p-5 flex items-center justify-center shadow-sm">
-              <span className="text-sm font-bold text-primary-dark dark:text-primary uppercase tracking-wider">
-                Living
-              </span>
-            </div>
-          ) : (
-            <div className="bg-white/80 dark:bg-dark-card/80 backdrop-blur-sm rounded-xl border border-sage-200 dark:border-dark-border p-5 space-y-3 shadow-sm">
-              <div className="flex items-center gap-2 text-sage-400 dark:text-dark-text-muted">
-                <MapPin className="h-4 w-4" />
-                <span className="text-xs font-bold uppercase tracking-widest">
-                  Died
-                </span>
-              </div>
-              <div>
-                <p className="text-base font-medium text-earth-900 dark:text-dark-text leading-snug">
-                  {person.deathPlaceText || "\u2014"}
-                </p>
-                <p className="text-sm text-sage-400 dark:text-dark-text-muted mt-1 flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5" />
-                  {formatDate(person.deathDate, person.deathDateApprox)}
-                </p>
-                {person.causeOfDeath && (
-                  <p className="text-xs text-sage-400 dark:text-dark-text-muted mt-1">
-                    {person.causeOfDeath}
+        {/* ═══ OVERVIEW TAB ═══ */}
+        {activeTab === "overview" && (
+          <>
+            {/* Born / Died cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-white/80 dark:bg-dark-card/80 backdrop-blur-sm rounded-xl border border-sage-200 dark:border-dark-border p-5 space-y-3 shadow-sm">
+                <div className="flex items-center gap-2 text-sage-400 dark:text-dark-text-muted">
+                  <MapPin className="h-4 w-4" />
+                  <span className="text-xs font-bold uppercase tracking-widest">Born</span>
+                </div>
+                <div>
+                  <p className="text-base font-medium text-earth-900 dark:text-dark-text leading-snug">{person.birthPlaceText || "\u2014"}</p>
+                  <p className="text-sm text-sage-400 dark:text-dark-text-muted mt-1 flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {formatDate(person.birthDate, person.birthDateApprox)}
                   </p>
-                )}
+                  {person.birthNotes && <p className="text-xs text-sage-400 dark:text-dark-text-muted mt-1 italic">{person.birthNotes}</p>}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Nicknames */}
-        {person.nicknames && (
-          <div className="flex flex-wrap gap-2">
-            {person.nicknames.split(",").map((nick, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center gap-1.5 bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border px-3 py-1.5 rounded-full text-sm text-earth-800 dark:text-dark-text"
-              >
-                <User className="h-3.5 w-3.5 text-sage-400 dark:text-dark-text-muted" />
-                {nick.trim()}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Residences */}
-        {sortedResidences.length > 0 && (
-          <section className="space-y-3">
-            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
-              <Home className="h-4 w-4" />
-              Residences
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {sortedResidences.map((r) => (
-                <div
-                  key={r.id}
-                  className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sage-400 dark:text-dark-text-muted mb-1">
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span className="text-xs font-bold uppercase tracking-widest">
-                        {r.is_current ? "Current Residence" : "Residence"}
-                      </span>
-                    </div>
-                    {r.is_current && (
-                      <span className="text-xs font-semibold text-primary-dark bg-primary/10 px-2 py-0.5 rounded flex-shrink-0">
-                        Current
-                      </span>
-                    )}
+              {person.isLiving ? (
+                <div className="bg-primary/10 dark:bg-primary/5 rounded-xl border border-primary/20 p-5 flex items-center justify-center shadow-sm">
+                  <span className="text-sm font-bold text-primary-dark dark:text-primary uppercase tracking-wider">Living</span>
+                </div>
+              ) : (
+                <div className="bg-white/80 dark:bg-dark-card/80 backdrop-blur-sm rounded-xl border border-sage-200 dark:border-dark-border p-5 space-y-3 shadow-sm">
+                  <div className="flex items-center gap-2 text-sage-400 dark:text-dark-text-muted">
+                    <MapPin className="h-4 w-4" />
+                    <span className="text-xs font-bold uppercase tracking-widest">Died</span>
                   </div>
-                  <p className="text-sm font-medium text-earth-900 dark:text-dark-text">
-                    {[r.location?.city, r.location?.region, r.location?.country].filter(Boolean).join(", ") || r.place_text || "Unknown location"}
-                  </p>
-                  {(r.from_date || r.to_date) && (
-                    <p className="text-xs text-sage-400 dark:text-dark-text-muted mt-1 flex items-center gap-1.5">
-                      <Calendar className="h-3 w-3" />
-                      {r.from_date ?? "?"} {"\u2013"} {r.is_current ? "present" : (r.to_date ?? "?")}
+                  <div>
+                    <p className="text-base font-medium text-earth-900 dark:text-dark-text leading-snug">{person.deathPlaceText || "\u2014"}</p>
+                    <p className="text-sm text-sage-400 dark:text-dark-text-muted mt-1 flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {formatDate(person.deathDate, person.deathDateApprox)}
                     </p>
-                  )}
-                  {r.notes && (
-                    <p className="text-xs text-sage-400 dark:text-dark-text-muted mt-1 italic">
-                      {r.notes}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Bio section */}
-        {person.bio && (
-          <section className="space-y-3">
-            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
-              <BookOpen className="h-4 w-4" />
-              About
-            </h3>
-            <div className="relative bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border p-6 rounded-xl shadow-sm overflow-hidden">
-              {/* Green left accent bar */}
-              <div className="absolute left-0 top-0 w-1 h-full bg-primary rounded-l-xl" />
-              <p className="text-base text-earth-800 dark:text-dark-text leading-relaxed pl-4">
-                {person.bio}
-              </p>
-            </div>
-          </section>
-        )}
-
-        {/* Additional Details */}
-        {(person.ethnicity || person.religion || person.education || person.militaryService || person.burialLocation) && (
-          <section className="space-y-3">
-            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
-              <User className="h-4 w-4" />
-              Details
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {person.ethnicity && (
-                <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-sage-400 dark:text-dark-text-muted mb-1">
-                    <Globe className="h-3.5 w-3.5" />
-                    <span className="text-xs font-bold uppercase tracking-widest">Ethnicity</span>
+                    {person.causeOfDeath && <p className="text-xs text-sage-400 dark:text-dark-text-muted mt-1">{person.causeOfDeath}</p>}
                   </div>
-                  <p className="text-sm font-medium text-earth-900 dark:text-dark-text">{person.ethnicity}</p>
-                </div>
-              )}
-              {person.religion && (
-                <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-sage-400 dark:text-dark-text-muted mb-1">
-                    <Church className="h-3.5 w-3.5" />
-                    <span className="text-xs font-bold uppercase tracking-widest">Religion</span>
-                  </div>
-                  <p className="text-sm font-medium text-earth-900 dark:text-dark-text">{person.religion}</p>
-                </div>
-              )}
-              {person.education && (
-                <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-sage-400 dark:text-dark-text-muted mb-1">
-                    <GraduationCap className="h-3.5 w-3.5" />
-                    <span className="text-xs font-bold uppercase tracking-widest">Education</span>
-                  </div>
-                  <p className="text-sm font-medium text-earth-900 dark:text-dark-text">{person.education}</p>
-                </div>
-              )}
-              {person.militaryService && (
-                <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-sage-400 dark:text-dark-text-muted mb-1">
-                    <Shield className="h-3.5 w-3.5" />
-                    <span className="text-xs font-bold uppercase tracking-widest">Military Service</span>
-                  </div>
-                  <p className="text-sm font-medium text-earth-900 dark:text-dark-text">{person.militaryService}</p>
-                </div>
-              )}
-              {person.burialLocation && (
-                <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-sage-400 dark:text-dark-text-muted mb-1">
-                    <Cross className="h-3.5 w-3.5" />
-                    <span className="text-xs font-bold uppercase tracking-widest">Burial Location</span>
-                  </div>
-                  <p className="text-sm font-medium text-earth-900 dark:text-dark-text">{person.burialLocation}</p>
                 </div>
               )}
             </div>
-          </section>
-        )}
 
-        {/* Notes (admin/editor only) */}
-        {canEdit && person.notes && (
-          <section className="space-y-3">
-            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
-              <StickyNote className="h-4 w-4" />
-              Notes
-            </h3>
-            <div className="relative bg-amber-50/70 dark:bg-amber-900/10 backdrop-blur-sm border border-amber-200 dark:border-amber-800/30 p-6 rounded-xl shadow-sm overflow-hidden">
-              <div className="absolute left-0 top-0 w-1 h-full bg-amber-400 dark:bg-amber-600 rounded-l-xl" />
-              <p className="text-sm text-earth-800 dark:text-dark-text leading-relaxed pl-4 whitespace-pre-wrap">
-                {person.notes}
-              </p>
-            </div>
-          </section>
-        )}
-
-        {/* Relationships section */}
-        <section className="space-y-5">
-          <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
-              <Users className="h-4 w-4" />
-              Family
-            </h3>
-            {canEdit && (
-              <button
-                onClick={() => setAddRelOpen(true)}
-                className="flex items-center gap-1.5 text-xs font-medium text-primary-dark dark:text-primary hover:text-primary transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Relationship
-              </button>
+            {/* Nicknames */}
+            {person.nicknames && (
+              <div className="flex flex-wrap gap-2">
+                {person.nicknames.split(",").map((nick, i) => (
+                  <span key={i} className="inline-flex items-center gap-1.5 bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border px-3 py-1.5 rounded-full text-sm text-earth-800 dark:text-dark-text">
+                    <User className="h-3.5 w-3.5 text-sage-400 dark:text-dark-text-muted" />
+                    {nick.trim()}
+                  </span>
+                ))}
+              </div>
             )}
-          </div>
 
-          {!relationships && !grouped && (
-            <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-6 text-center shadow-sm">
-              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-sage-400 dark:text-dark-text-muted text-sm">
-                Loading relationships...
-              </p>
-            </div>
-          )}
-
-          {grouped && (
-            <div className="space-y-6">
-              <RelationshipGroup
-                title="Parents"
-                icon={<User className="h-3.5 w-3.5" />}
-                items={grouped.parents}
-                canEdit={!!canEdit}
-                onDelete={(id) => deleteRelMutation.mutate(id)}
-              />
-              <RelationshipGroup
-                title={
-                  grouped.spouses.length > 1 ? "Spouses" : "Spouse"
-                }
-                icon={<Heart className="h-3.5 w-3.5" />}
-                items={grouped.spouses}
-                canEdit={!!canEdit}
-                onDelete={(id) => deleteRelMutation.mutate(id)}
-              />
-              <RelationshipGroup
-                title="Children"
-                icon={<Users className="h-3.5 w-3.5" />}
-                items={grouped.children}
-                canEdit={!!canEdit}
-                onDelete={(id) => deleteRelMutation.mutate(id)}
-              />
-
-              {grouped.parents.length === 0 &&
-                grouped.spouses.length === 0 &&
-                grouped.children.length === 0 && (
-                  <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-6 text-center shadow-sm">
-                    <Users className="h-8 w-8 text-sage-300 dark:text-dark-text-muted mx-auto mb-2" />
-                    <p className="text-sage-400 dark:text-dark-text-muted text-sm">
-                      No family connections recorded yet.
-                    </p>
-                  </div>
-                )}
-            </div>
-          )}
-        </section>
-
-        {/* Life Story section */}
-        <section className="space-y-3">
-          <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
-            <BookOpen className="h-4 w-4" />
-            Life Story
-          </h3>
-
-          {storyLoading && (
-            <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-8 text-center shadow-sm">
-              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-sage-400 dark:text-dark-text-muted text-sm">Loading...</p>
-            </div>
-          )}
-
-          {!storyLoading && story && (
-            <Link
-              to="/person/$personId/story"
-              params={{ personId: person.id }}
-              className="block bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-6 shadow-sm hover:bg-white dark:hover:bg-dark-card hover:border-primary/40 hover:shadow-md transition-all group"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-lg font-serif font-semibold text-earth-900 dark:text-dark-text group-hover:text-primary-dark transition-colors">
-                    {story.title}
-                  </h4>
-                  {story.subtitle && (
-                    <p className="text-sm text-sage-400 dark:text-dark-text-muted italic mt-1">
-                      {story.subtitle}
-                    </p>
-                  )}
-                  <p className="text-xs text-sage-400 dark:text-dark-text-muted mt-3 flex items-center gap-1.5">
-                    <Clock className="h-3 w-3" />
-                    Published
-                  </p>
+            {/* Bio */}
+            {person.bio && (
+              <section className="space-y-3">
+                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
+                  <BookOpen className="h-4 w-4" /> About
+                </h3>
+                <div className="relative bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border p-6 rounded-xl shadow-sm overflow-hidden">
+                  <div className="absolute left-0 top-0 w-1 h-full bg-primary rounded-l-xl" />
+                  <p className="text-base text-earth-800 dark:text-dark-text leading-relaxed pl-4">{person.bio}</p>
                 </div>
-                <ArrowRight className="h-5 w-5 text-sage-300 dark:text-dark-text-muted group-hover:text-primary flex-shrink-0 mt-1 transition-colors" />
-              </div>
-            </Link>
-          )}
+              </section>
+            )}
 
-          {!storyLoading && !story && (
-            <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-8 text-center shadow-sm">
-              <BookOpen className="h-10 w-10 text-sage-300 dark:text-dark-text-muted mx-auto mb-3" />
-              <p className="text-sage-400 dark:text-dark-text-muted text-sm font-medium">
-                No published story yet
-              </p>
-              <p className="text-sage-300 dark:text-dark-text-muted text-xs mt-1 mb-4">
-                {canEdit
-                  ? "Write this person's life story to share with the family."
-                  : "A life story has not been written for this person yet."}
-              </p>
-              <div className="flex justify-center gap-3">
+            {/* Family Mini Tree */}
+            <section className="space-y-3">
+              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
+                <Users className="h-4 w-4" /> Family
+              </h3>
+              {grouped ? (
+                <FamilyMiniTree
+                  personId={personId}
+                  person={person}
+                  grouped={grouped}
+                  canEdit={!!canEdit}
+                  onAddRelationship={() => setAddRelOpen(true)}
+                />
+              ) : (
+                <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-6 text-center shadow-sm">
+                  <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                  <p className="text-sage-400 dark:text-dark-text-muted text-sm">Loading relationships...</p>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {/* ═══ STORY & TIMELINE TAB ═══ */}
+        {activeTab === "story" && (
+          <>
+            {/* Life Story */}
+            <section className="space-y-3">
+              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
+                <BookOpen className="h-4 w-4" /> Life Story
+              </h3>
+              {storyLoading && (
+                <div className="bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border rounded-xl p-8 text-center shadow-sm">
+                  <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                </div>
+              )}
+              {!storyLoading && story && (
                 <Link
                   to="/person/$personId/story"
                   params={{ personId: person.id }}
-                  className="inline-flex items-center gap-2 bg-white dark:bg-dark-surface border border-sage-200 dark:border-dark-border text-earth-800 dark:text-dark-text font-bold text-xs uppercase tracking-wider px-4 py-2 rounded-lg hover:bg-sage-50 dark:hover:bg-dark-card transition-colors"
+                  className="block bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border rounded-xl p-6 shadow-sm hover:bg-white dark:hover:bg-dark-card hover:border-primary/40 hover:shadow-md transition-all group"
                 >
-                  <BookOpen className="h-3.5 w-3.5" />
-                  View Story Page
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-lg font-serif font-semibold text-earth-900 dark:text-dark-text group-hover:text-primary-dark transition-colors">{story.title}</h4>
+                      {story.subtitle && <p className="text-sm text-sage-400 italic mt-1">{story.subtitle}</p>}
+                      <p className="text-xs text-sage-400 mt-3 flex items-center gap-1.5"><Clock className="h-3 w-3" /> Published</p>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-sage-300 group-hover:text-primary flex-shrink-0 mt-1 transition-colors" />
+                  </div>
                 </Link>
-                {canEdit && (
-                  <Link
-                    to="/person/$personId/story-edit"
-                    params={{ personId: person.id }}
-                    className="inline-flex items-center gap-2 bg-primary text-earth-900 font-bold text-xs uppercase tracking-wider px-4 py-2 rounded-lg hover:bg-primary-dark hover:text-white transition-colors"
-                  >
-                    <Edit className="h-3.5 w-3.5" />
-                    Write Story
-                  </Link>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
+              )}
+              {!storyLoading && !story && (
+                <div className="bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border rounded-xl p-8 text-center shadow-sm">
+                  <BookOpen className="h-10 w-10 text-sage-300 mx-auto mb-3" />
+                  <p className="text-sage-400 text-sm font-medium">No published story yet</p>
+                  {canEdit && (
+                    <Link to="/person/$personId/story-edit" params={{ personId: person.id }}
+                      className="inline-flex items-center gap-2 bg-primary text-earth-900 font-bold text-xs uppercase tracking-wider px-4 py-2 rounded-lg hover:bg-primary-dark hover:text-white transition-colors mt-4"
+                    >
+                      <Edit className="h-3.5 w-3.5" /> Write Story
+                    </Link>
+                  )}
+                </div>
+              )}
+            </section>
 
-        {/* Gallery */}
-        <section className="space-y-3">
-          <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
-            <Image className="h-4 w-4" />
-            Gallery
-          </h3>
-          {mediaItems && mediaItems.length > 0 ? (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {mediaItems.map((item) => (
-                <img
-                  key={item.id}
-                  src={`/media/${item.s3_key}`}
-                  alt={item.title ?? "Photo"}
-                  className="w-full aspect-square rounded-lg border border-sage-200 dark:border-dark-border object-cover"
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="bg-white/70 dark:bg-dark-card/70 backdrop-blur-sm border border-sage-200 dark:border-dark-border rounded-xl p-8 text-center shadow-sm">
-              <Image className="h-10 w-10 text-sage-300 dark:text-dark-text-muted mx-auto mb-3" />
-              <p className="text-sage-400 dark:text-dark-text-muted text-sm font-medium">No photos yet</p>
-              <p className="text-sage-300 dark:text-dark-text-muted text-xs mt-1">
-                Photos and documents will be displayed here.
-              </p>
-            </div>
-          )}
-        </section>
+            {/* Timeline Events with CRUD */}
+            <section className="space-y-3">
+              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
+                <Clock className="h-4 w-4" /> Timeline
+              </h3>
+              <TimelineEventEditor
+                personId={personId}
+                events={timelineEvents ?? []}
+                canEdit={!!canEdit}
+              />
+            </section>
+          </>
+        )}
+
+        {/* ═══ GALLERY TAB ═══ */}
+        {activeTab === "gallery" && (
+          <section className="space-y-3">
+            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
+              <Image className="h-4 w-4" /> Gallery
+            </h3>
+            {mediaItems && mediaItems.length > 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {mediaItems.map((item, idx) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setLightboxIndex(idx)}
+                    className="relative group"
+                  >
+                    <img
+                      src={`/media/${item.s3_key}`}
+                      alt={item.title ?? "Photo"}
+                      className="w-full aspect-square rounded-lg border border-sage-200 dark:border-dark-border object-cover group-hover:border-primary/40 group-hover:shadow-md transition-all"
+                    />
+                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/10 transition-colors" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border rounded-xl p-8 text-center shadow-sm">
+                <Image className="h-10 w-10 text-sage-300 mx-auto mb-3" />
+                <p className="text-sage-400 text-sm font-medium">No photos yet</p>
+                <p className="text-sage-300 text-xs mt-1">Photos and documents will be displayed here.</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ═══ DETAILS TAB ═══ */}
+        {activeTab === "details" && (
+          <>
+            {/* Residences */}
+            {sortedResidences.length > 0 && (
+              <section className="space-y-3">
+                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
+                  <Home className="h-4 w-4" /> Residences
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {sortedResidences.map((r) => (
+                    <div key={r.id} className="bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 text-sage-400 mb-1">
+                          <MapPin className="h-3.5 w-3.5" />
+                          <span className="text-xs font-bold uppercase tracking-widest">{r.is_current ? "Current" : "Residence"}</span>
+                        </div>
+                        {r.is_current && <span className="text-xs font-semibold text-primary-dark bg-primary/10 px-2 py-0.5 rounded flex-shrink-0">Current</span>}
+                      </div>
+                      <p className="text-sm font-medium text-earth-900 dark:text-dark-text">
+                        {[r.location?.city, r.location?.region, r.location?.country].filter(Boolean).join(", ") || r.place_text || "Unknown"}
+                      </p>
+                      {(r.from_date || r.to_date) && (
+                        <p className="text-xs text-sage-400 mt-1 flex items-center gap-1.5">
+                          <Calendar className="h-3 w-3" />
+                          {r.from_date ?? "?"} {"\u2013"} {r.is_current ? "present" : (r.to_date ?? "?")}
+                        </p>
+                      )}
+                      {r.notes && <p className="text-xs text-sage-400 mt-1 italic">{r.notes}</p>}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Additional Details */}
+            {(person.ethnicity || person.religion || person.education || person.militaryService || person.burialLocation) && (
+              <section className="space-y-3">
+                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
+                  <User className="h-4 w-4" /> Details
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {person.ethnicity && (
+                    <div className="bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 text-sage-400 mb-1"><Globe className="h-3.5 w-3.5" /><span className="text-xs font-bold uppercase tracking-widest">Ethnicity</span></div>
+                      <p className="text-sm font-medium text-earth-900 dark:text-dark-text">{person.ethnicity}</p>
+                    </div>
+                  )}
+                  {person.religion && (
+                    <div className="bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 text-sage-400 mb-1"><Church className="h-3.5 w-3.5" /><span className="text-xs font-bold uppercase tracking-widest">Religion</span></div>
+                      <p className="text-sm font-medium text-earth-900 dark:text-dark-text">{person.religion}</p>
+                    </div>
+                  )}
+                  {person.education && (
+                    <div className="bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 text-sage-400 mb-1"><GraduationCap className="h-3.5 w-3.5" /><span className="text-xs font-bold uppercase tracking-widest">Education</span></div>
+                      <p className="text-sm font-medium text-earth-900 dark:text-dark-text">{person.education}</p>
+                    </div>
+                  )}
+                  {person.militaryService && (
+                    <div className="bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 text-sage-400 mb-1"><Shield className="h-3.5 w-3.5" /><span className="text-xs font-bold uppercase tracking-widest">Military</span></div>
+                      <p className="text-sm font-medium text-earth-900 dark:text-dark-text">{person.militaryService}</p>
+                    </div>
+                  )}
+                  {person.burialLocation && (
+                    <div className="bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 text-sage-400 mb-1"><Cross className="h-3.5 w-3.5" /><span className="text-xs font-bold uppercase tracking-widest">Burial</span></div>
+                      <p className="text-sm font-medium text-earth-900 dark:text-dark-text">{person.burialLocation}</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Notes */}
+            {canEdit && person.notes && (
+              <section className="space-y-3">
+                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
+                  <StickyNote className="h-4 w-4" /> Notes
+                </h3>
+                <div className="relative bg-amber-50/70 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 p-6 rounded-xl shadow-sm overflow-hidden">
+                  <div className="absolute left-0 top-0 w-1 h-full bg-amber-400 rounded-l-xl" />
+                  <p className="text-sm text-earth-800 dark:text-dark-text leading-relaxed pl-4 whitespace-pre-wrap">{person.notes}</p>
+                </div>
+              </section>
+            )}
+          </>
+        )}
       </div>
+
+      {/* Photo Lightbox */}
+      {lightboxIndex !== null && mediaItems && (
+        <PhotoLightbox
+          items={mediaItems}
+          currentIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+        />
+      )}
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && person && (
