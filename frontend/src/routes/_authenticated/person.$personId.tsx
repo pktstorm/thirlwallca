@@ -39,6 +39,7 @@ import { ProfileTabs, type ProfileTab } from "../../components/person/ProfileTab
 import { FamilyMiniTree } from "../../components/person/FamilyMiniTree"
 import { PhotoLightbox } from "../../components/person/PhotoLightbox"
 import { TimelineEventEditor } from "../../components/person/TimelineEventEditor"
+import { ShareMemory } from "../../components/person/ShareMemory"
 
 export const Route = createFileRoute("/_authenticated/person/$personId")({
   component: PersonProfilePage,
@@ -931,6 +932,9 @@ function PersonProfilePage() {
                 </div>
               )}
             </section>
+
+            {/* Family Memories */}
+            <ShareMemory personId={personId} personName={fullName} />
           </>
         )}
 

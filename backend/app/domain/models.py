@@ -275,3 +275,54 @@ class OnboardToken(Base):
     expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class Memory(Base):
+    """A short personal memory/anecdote about a person, contributed by any user."""
+    __tablename__ = "memories"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    person_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="CASCADE"), nullable=False)
+    author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    photo_s3_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PersonPhotoTag(Base):
+    """A tag linking a person to a region of a photo."""
+    __tablename__ = "person_photo_tags"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    media_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("media.id", ondelete="CASCADE"), nullable=False)
+    person_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="CASCADE"), nullable=False)
+    x_pct: Mapped[float] = mapped_column(Float, nullable=False)
+    y_pct: Mapped[float] = mapped_column(Float, nullable=False)
+    width_pct: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    height_pct: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class FamilyTradition(Base):
+    """A family recipe, tradition, or custom passed down through generations."""
+    __tablename__ = "family_traditions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    category: Mapped[str] = mapped_column(String(32), nullable=False, default="tradition")
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    cover_image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    origin_person_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("persons.id"), nullable=True)
+    author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class FamilyTraditionPerson(Base):
+    """Junction table linking traditions to people."""
+    __tablename__ = "family_tradition_persons"
+
+    tradition_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("family_traditions.id", ondelete="CASCADE"), primary_key=True)
+    person_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="CASCADE"), primary_key=True)

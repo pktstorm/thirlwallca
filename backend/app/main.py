@@ -20,6 +20,11 @@ from app.http.handlers import (
     person_alternate_names,
     map_data,
     import_handler,
+    memories,
+    photo_tags,
+    traditions,
+    dashboard,
+    family_stats,
 )
 
 def create_app() -> FastAPI:
@@ -52,6 +57,11 @@ def create_app() -> FastAPI:
     app.include_router(person_alternate_names.router, prefix="/api/v1/persons", tags=["person-alternate-names"])
     app.include_router(map_data.router, prefix="/api/v1/map", tags=["map"])
     app.include_router(import_handler.router, prefix="/api/v1/import", tags=["import"])
+    app.include_router(memories.router, prefix="/api/v1/memories", tags=["memories"])
+    app.include_router(photo_tags.router, prefix="/api/v1/photo-tags", tags=["photo-tags"])
+    app.include_router(traditions.router, prefix="/api/v1/traditions", tags=["traditions"])
+    app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
+    app.include_router(family_stats.router, prefix="/api/v1/stats", tags=["family-stats"])
 
     return app
 
