@@ -12,114 +12,64 @@ export interface MigrationPathData {
   yearApprox: boolean
   reason: string | null
   personName: string | null
+  generation?: number
 }
 
 interface MigrationLayerProps {
   migrations: MigrationPathData[]
+  useGenerationColors?: boolean
 }
 
-interface LineStringGeometry {
-  type: "LineString"
-  coordinates: [number, number][]
+// Generation color palette
+const GENERATION_COLORS = [
+  "#30e86e", "#22b8cf", "#7c3aed", "#f59e0b",
+  "#ef4444", "#ec4899", "#6366f1", "#14b8a6",
+]
+
+function getGenColor(gen: number): string {
+  return GENERATION_COLORS[Math.min(gen, GENERATION_COLORS.length - 1)]!
 }
 
-interface PointGeometry {
-  type: "Point"
-  coordinates: [number, number]
-}
-
-interface GeoJSONLineFeature {
-  type: "Feature"
-  properties: Record<string, unknown>
-  geometry: LineStringGeometry
-}
-
-interface GeoJSONPointFeature {
-  type: "Feature"
-  properties: Record<string, unknown>
-  geometry: PointGeometry
-}
-
-interface GeoJSONLineFeatureCollection {
-  type: "FeatureCollection"
-  features: GeoJSONLineFeature[]
-}
-
-interface GeoJSONPointFeatureCollection {
-  type: "FeatureCollection"
-  features: GeoJSONPointFeature[]
-}
-
-/**
- * Build a curved GeoJSON LineString between two points.
- * The curve is a simple quadratic bezier approximation using a midpoint
- * offset perpendicular to the line, giving a nice arc effect.
- */
 function buildCurvedLine(
-  fromLng: number,
-  fromLat: number,
-  toLng: number,
-  toLat: number,
+  fromLng: number, fromLat: number,
+  toLng: number, toLat: number,
   numPoints = 50,
 ): [number, number][] {
   const midLng = (fromLng + toLng) / 2
   const midLat = (fromLat + toLat) / 2
-
-  // Perpendicular offset for the curve
-  const dx = toLng - fromLng
-  const dy = toLat - fromLat
+  const dx = toLng - fromLng, dy = toLat - fromLat
   const dist = Math.sqrt(dx * dx + dy * dy)
-
-  // Scale the curve height by distance (more distance = more curve)
   const curveHeight = dist * 0.2
-
-  // Perpendicular direction (rotate 90 degrees)
-  const perpX = -dy / dist
-  const perpY = dx / dist
-
-  // Control point
+  const perpX = -dy / dist, perpY = dx / dist
   const cpLng = midLng + perpX * curveHeight
   const cpLat = midLat + perpY * curveHeight
 
   const points: [number, number][] = []
   for (let i = 0; i <= numPoints; i++) {
-    const t = i / numPoints
-    const invT = 1 - t
-    // Quadratic bezier: B(t) = (1-t)^2 * P0 + 2(1-t)t * CP + t^2 * P1
-    const lng = invT * invT * fromLng + 2 * invT * t * cpLng + t * t * toLng
-    const lat = invT * invT * fromLat + 2 * invT * t * cpLat + t * t * toLat
-    points.push([lng, lat])
+    const t = i / numPoints, invT = 1 - t
+    points.push([
+      invT * invT * fromLng + 2 * invT * t * cpLng + t * t * toLng,
+      invT * invT * fromLat + 2 * invT * t * cpLat + t * t * toLat,
+    ])
   }
   return points
 }
 
-const migrationLineLayer: LineLayerSpecification = {
-  id: "migration-lines",
-  type: "line",
-  source: "migration-paths",
-  paint: {
-    "line-color": "#30e86e",
-    "line-width": 2.5,
-    "line-opacity": 0.8,
-    "line-dasharray": [2, 2],
-  },
+interface GeoJSONFeature {
+  type: "Feature"
+  properties: Record<string, unknown>
+  geometry: { type: "LineString"; coordinates: [number, number][] } | { type: "Point"; coordinates: [number, number] }
 }
 
-const migrationLineGlowLayer: LineLayerSpecification = {
-  id: "migration-lines-glow",
-  type: "line",
-  source: "migration-paths",
-  paint: {
-    "line-color": "#30e86e",
-    "line-width": 6,
-    "line-opacity": 0.15,
-    "line-blur": 4,
-  },
+interface GeoJSONFC {
+  type: "FeatureCollection"
+  features: GeoJSONFeature[]
 }
 
-export function MigrationLayer({ migrations }: MigrationLayerProps) {
-  const geojsonData = useMemo<GeoJSONLineFeatureCollection>(() => {
-    const features: GeoJSONLineFeature[] = migrations.map((m) => ({
+export function MigrationLayer({ migrations, useGenerationColors = false }: MigrationLayerProps) {
+  // Group migrations by generation for color-coding
+  const { lineData, arrowData } = useMemo(() => {
+    const lineFeatures: GeoJSONFeature[] = migrations.map((m) => ({
       type: "Feature" as const,
       properties: {
         id: m.id,
@@ -127,42 +77,21 @@ export function MigrationLayer({ migrations }: MigrationLayerProps) {
         yearApprox: m.yearApprox,
         reason: m.reason,
         personName: m.personName,
+        generation: m.generation ?? 0,
+        color: useGenerationColors ? getGenColor(m.generation ?? 0) : "#30e86e",
+        opacity: useGenerationColors ? Math.max(0.4, 1 - (m.generation ?? 0) * 0.12) : 0.8,
       },
       geometry: {
         type: "LineString" as const,
-        coordinates: buildCurvedLine(
-          m.fromLng,
-          m.fromLat,
-          m.toLng,
-          m.toLat,
-        ),
+        coordinates: buildCurvedLine(m.fromLng, m.fromLat, m.toLng, m.toLat),
       },
     }))
 
-    return {
-      type: "FeatureCollection" as const,
-      features,
-    }
-  }, [migrations])
-
-  // Arrowhead markers at the destination end of each migration
-  const arrowGeojsonData = useMemo<GeoJSONPointFeatureCollection>(() => {
-    const features: GeoJSONPointFeature[] = migrations.map((m) => {
-      const coords = buildCurvedLine(m.fromLng, m.fromLat, m.toLng, m.toLat)
-      const lastPt = coords[coords.length - 1]!
-      const prevPt = coords[coords.length - 2]!
-      const bearing =
-        (Math.atan2(
-          lastPt[0] - prevPt[0],
-          lastPt[1] - prevPt[1],
-        ) *
-          180) /
-        Math.PI
-
+    const arrowFeatures: GeoJSONFeature[] = migrations.map((m) => {
       return {
         type: "Feature" as const,
         properties: {
-          bearing,
+          color: useGenerationColors ? getGenColor(m.generation ?? 0) : "#30e86e",
         },
         geometry: {
           type: "Point" as const,
@@ -172,27 +101,60 @@ export function MigrationLayer({ migrations }: MigrationLayerProps) {
     })
 
     return {
-      type: "FeatureCollection" as const,
-      features,
+      lineData: { type: "FeatureCollection" as const, features: lineFeatures } as GeoJSONFC,
+      arrowData: { type: "FeatureCollection" as const, features: arrowFeatures } as GeoJSONFC,
     }
-  }, [migrations])
+  }, [migrations, useGenerationColors])
 
   if (migrations.length === 0) return null
 
+  // Use data-driven styling for generation colors
+  const lineLayer: LineLayerSpecification = {
+    id: "migration-lines",
+    type: "line",
+    source: "migration-paths",
+    paint: {
+      "line-color": useGenerationColors
+        ? ["get", "color"] as any
+        : "#30e86e",
+      "line-width": 2.5,
+      "line-opacity": useGenerationColors
+        ? ["get", "opacity"] as any
+        : 0.8,
+      "line-dasharray": [2, 2],
+    },
+  }
+
+  const glowLayer: LineLayerSpecification = {
+    id: "migration-lines-glow",
+    type: "line",
+    source: "migration-paths",
+    paint: {
+      "line-color": useGenerationColors
+        ? ["get", "color"] as any
+        : "#30e86e",
+      "line-width": 6,
+      "line-opacity": 0.12,
+      "line-blur": 4,
+    },
+  }
+
   return (
     <>
-      <Source id="migration-paths" type="geojson" data={geojsonData}>
-        <Layer {...migrationLineGlowLayer} />
-        <Layer {...migrationLineLayer} />
+      <Source id="migration-paths" type="geojson" data={lineData}>
+        <Layer {...glowLayer} />
+        <Layer {...lineLayer} />
       </Source>
-      <Source id="migration-arrows" type="geojson" data={arrowGeojsonData}>
+      <Source id="migration-arrows" type="geojson" data={arrowData}>
         <Layer
           id="migration-arrow-circles"
           type="circle"
           source="migration-arrows"
           paint={{
             "circle-radius": 4,
-            "circle-color": "#30e86e",
+            "circle-color": useGenerationColors
+              ? ["get", "color"] as any
+              : "#30e86e",
             "circle-stroke-width": 2,
             "circle-stroke-color": "#ffffff",
           }}

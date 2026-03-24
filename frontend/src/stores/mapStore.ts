@@ -1,5 +1,7 @@
 import { create } from "zustand"
 
+export type MapMode = "all" | "my-journey" | "ancestor-trail"
+
 interface MapState {
   yearRange: [number, number] | null
   selectedPersonIds: Set<string> | null
@@ -8,6 +10,14 @@ interface MapState {
   showDeaths: boolean
   showResidences: boolean
   personPanelOpen: boolean
+  /** Current map mode */
+  mapMode: MapMode
+  /** Person ID for journey/ancestor trail modes */
+  focusPersonId: string | null
+  /** Whether timeline playback is active */
+  isPlaying: boolean
+  /** Current playback year (when playing) */
+  playbackYear: number | null
 
   setYearRange: (range: [number, number] | null) => void
   togglePerson: (id: string) => void
@@ -18,6 +28,9 @@ interface MapState {
   setShowDeaths: (v: boolean) => void
   setShowResidences: (v: boolean) => void
   setPersonPanelOpen: (v: boolean) => void
+  setMapMode: (mode: MapMode, personId?: string | null) => void
+  setIsPlaying: (v: boolean) => void
+  setPlaybackYear: (year: number | null) => void
   resetFilters: () => void
 }
 
@@ -29,6 +42,10 @@ export const useMapStore = create<MapState>((set) => ({
   showDeaths: true,
   showResidences: true,
   personPanelOpen: false,
+  mapMode: "all",
+  focusPersonId: null,
+  isPlaying: false,
+  playbackYear: null,
 
   setYearRange: (range) => set({ yearRange: range }),
 
@@ -36,8 +53,6 @@ export const useMapStore = create<MapState>((set) => ({
     set((state) => {
       const current = state.selectedPersonIds
       if (current === null) {
-        // Switching from "all" to a specific selection — deselect this one person
-        // But we don't know all IDs here, so instead: select only this person
         return { selectedPersonIds: new Set([id]) }
       }
       const next = new Set(current)
@@ -58,6 +73,20 @@ export const useMapStore = create<MapState>((set) => ({
   setShowResidences: (v) => set({ showResidences: v }),
   setPersonPanelOpen: (v) => set({ personPanelOpen: v }),
 
+  setMapMode: (mode, personId = null) =>
+    set({
+      mapMode: mode,
+      focusPersonId: personId ?? null,
+      // Reset filters when changing modes
+      selectedPersonIds: null,
+      yearRange: null,
+      isPlaying: false,
+      playbackYear: null,
+    }),
+
+  setIsPlaying: (v) => set({ isPlaying: v }),
+  setPlaybackYear: (year) => set({ playbackYear: year }),
+
   resetFilters: () =>
     set({
       yearRange: null,
@@ -66,5 +95,9 @@ export const useMapStore = create<MapState>((set) => ({
       showBirths: true,
       showDeaths: true,
       showResidences: true,
+      mapMode: "all",
+      focusPersonId: null,
+      isPlaying: false,
+      playbackYear: null,
     }),
 }))

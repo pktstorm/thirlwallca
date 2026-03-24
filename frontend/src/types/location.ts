@@ -31,4 +31,25 @@ export interface MapPlace {
   latitude: number
   longitude: number
   year: number | null
+  generation: number
+  profile_photo_url: string | null
+}
+
+export interface AncestorTrailResponse {
+  places: MapPlace[]
+  person_name: string
+  ancestor_count: number
+}
+
+export interface PersonMapContext {
+  person_id: string
+  person_name: string
+  profile_photo_url: string | null
+  birth_year: number | null
+  death_year: number | null
+  is_living: boolean
+  story_count: number
+  timeline_event_count: number
+  stories: { id: string; title: string }[]
+  timeline_events: { id: string; title: string; event_date: string | null; event_type: string | null }[]
 }
