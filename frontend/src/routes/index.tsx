@@ -9,7 +9,9 @@ export const Route = createFileRoute("/")({
         throw redirect({ to: "/home" })
       }
     } catch (e: any) {
-      if (e.to === "/home") throw e
+      // Re-throw redirect — this is the happy path
+      if (e?.to) throw e
+      // fetchAuthSession failed (no session) — fall through to login
     }
     throw redirect({ to: "/login" })
   },
