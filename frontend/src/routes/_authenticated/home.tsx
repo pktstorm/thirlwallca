@@ -148,7 +148,10 @@ function HomePage() {
                       <div key={i} className={`flex items-center gap-3 border rounded-xl px-4 py-3 ${bgClass}`}>
                         <Icon className={`h-4 w-4 flex-shrink-0 ${iconColor}`} />
                         <p className="text-sm text-earth-900 dark:text-dark-text flex-1">
-                          {item.detail ?? `${item.person_name} (${item.year})`}
+                          <span className="font-semibold">{item.person_name}</span>
+                          {item.type === "birth" && <> was born on this day{item.year ? ` in ${item.year}` : ""}</>}
+                          {item.type === "death" && <> passed away on this day{item.year ? ` in ${item.year}` : ""}</>}
+                          {item.type === "marriage" && <> was married on this day{item.year ? ` in ${item.year}` : ""}</>}
                         </p>
                       </div>
                     )
