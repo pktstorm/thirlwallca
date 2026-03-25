@@ -6,10 +6,10 @@ export const Route = createFileRoute("/")({
     try {
       const session = await fetchAuthSession()
       if (session.tokens) {
-        throw redirect({ to: "/tree" })
+        throw redirect({ to: "/home" })
       }
     } catch (e: any) {
-      if (e.to === "/tree") throw e
+      if (e.to === "/home") throw e
     }
     throw redirect({ to: "/login" })
   },

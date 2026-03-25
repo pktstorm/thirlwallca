@@ -7,6 +7,11 @@ import {
   LogOut,
   UserCircle,
   Settings,
+  Home,
+  GitBranch,
+  BarChart3,
+  UtensilsCrossed,
+  ShieldCheck,
 } from "lucide-react"
 import { useAuthStore } from "../../stores/authStore"
 import { useUiStore } from "../../stores/uiStore"
@@ -20,10 +25,17 @@ import {
 } from "../ui/sheet"
 import { Separator } from "../ui/separator"
 
-const navItems = [
+const mainNavItems = [
+  { label: "Home", icon: Home, to: "/home" },
   { label: "Family Tree", icon: TreePine, to: "/tree" },
-  { label: "Search", icon: Search, to: "/search" },
-  { label: "Migration Map", icon: Map, to: "/map" },
+  { label: "Family Map", icon: Map, to: "/map" },
+  { label: "Search People", icon: Search, to: "/search" },
+] as const
+
+const discoverNavItems = [
+  { label: "How Related?", icon: GitBranch, to: "/related" },
+  { label: "Statistics", icon: BarChart3, to: "/stats" },
+  { label: "Recipes & Traditions", icon: UtensilsCrossed, to: "/traditions" },
   { label: "Media Gallery", icon: Images, to: "/media" },
 ] as const
 
@@ -64,6 +76,30 @@ export function NavSidebar() {
         ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
         : "bg-sage-100 text-sage-800 dark:bg-dark-surface dark:text-dark-text-muted"
 
+  const isActive = (to: string) => currentPath === to || currentPath.startsWith(to + "/")
+
+  function NavButton({ label, icon: Icon, to }: { label: string; icon: typeof Home; to: string }) {
+    const active = isActive(to)
+    return (
+      <button
+        type="button"
+        onClick={() => handleNav(to)}
+        className={`
+          w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+          transition-colors duration-150
+          ${active
+            ? "bg-primary/15 text-primary-dark dark:text-primary"
+            : "text-earth-800 dark:text-dark-text hover:bg-sage-50 dark:hover:bg-dark-surface hover:text-earth-900 dark:hover:text-dark-text"
+          }
+        `}
+      >
+        <Icon className={`h-5 w-5 shrink-0 ${active ? "text-primary-dark dark:text-primary" : "text-sage-400 dark:text-dark-text-muted"}`} />
+        {label}
+        {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+      </button>
+    )
+  }
+
   return (
     <Sheet open={sidebarOpen} onOpenChange={toggleSidebar}>
       <SheetContent
@@ -89,104 +125,54 @@ export function NavSidebar() {
         <Separator className="bg-sage-200 dark:bg-dark-border" />
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4">
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          {/* Main nav */}
           <ul className="space-y-1">
-            {navItems.map(({ label, icon: Icon, to }) => {
-              const isActive =
-                currentPath === to || currentPath.startsWith(to + "/")
-
-              return (
-                <li key={to}>
-                  <button
-                    type="button"
-                    onClick={() => handleNav(to)}
-                    className={`
-                      w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                      transition-colors duration-150
-                      ${
-                        isActive
-                          ? "bg-primary/15 text-primary-dark dark:text-primary"
-                          : "text-earth-800 dark:text-dark-text hover:bg-sage-50 dark:hover:bg-dark-surface hover:text-earth-900 dark:hover:text-dark-text"
-                      }
-                    `}
-                  >
-                    <Icon
-                      className={`h-5 w-5 shrink-0 ${
-                        isActive
-                          ? "text-primary-dark dark:text-primary"
-                          : "text-sage-400 dark:text-dark-text-muted"
-                      }`}
-                    />
-                    {label}
-                    {isActive && (
-                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
-                    )}
-                  </button>
-                </li>
-              )
-            })}
-
-            {/* My Profile — only shown when user is linked to a person */}
-            {user?.linkedPersonId && (
-              <li>
-                <Separator className="my-2 bg-sage-200 dark:bg-dark-border" />
-                <button
-                  type="button"
-                  onClick={() => handleNav(`/person/${user.linkedPersonId}`)}
-                  className={`
-                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                    transition-colors duration-150
-                    ${
-                      currentPath === `/person/${user.linkedPersonId}`
-                        ? "bg-primary/15 text-primary-dark dark:text-primary"
-                        : "text-earth-800 dark:text-dark-text hover:bg-sage-50 dark:hover:bg-dark-surface hover:text-earth-900 dark:hover:text-dark-text"
-                    }
-                  `}
-                >
-                  <UserCircle
-                    className={`h-5 w-5 shrink-0 ${
-                      currentPath === `/person/${user.linkedPersonId}`
-                        ? "text-primary-dark dark:text-primary"
-                        : "text-sage-400 dark:text-dark-text-muted"
-                    }`}
-                  />
-                  My Profile
-                  {currentPath === `/person/${user.linkedPersonId}` && (
-                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
-                  )}
-                </button>
-              </li>
-            )}
+            {mainNavItems.map(({ label, icon, to }) => (
+              <li key={to}><NavButton label={label} icon={icon} to={to} /></li>
+            ))}
           </ul>
+
+          {/* Discover section */}
+          <div className="mt-5 mb-2 px-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-sage-300 dark:text-dark-text-muted/50">Discover</p>
+          </div>
+          <ul className="space-y-1">
+            {discoverNavItems.map(({ label, icon, to }) => (
+              <li key={to}><NavButton label={label} icon={icon} to={to} /></li>
+            ))}
+          </ul>
+
+          {/* My Profile */}
+          {user?.linkedPersonId && (
+            <>
+              <Separator className="my-3 bg-sage-200 dark:bg-dark-border" />
+              <ul className="space-y-1">
+                <li>
+                  <NavButton label="My Profile" icon={UserCircle} to={`/person/${user.linkedPersonId}`} />
+                </li>
+              </ul>
+            </>
+          )}
+
+          {/* Admin section */}
+          {user?.role === "admin" && (
+            <>
+              <div className="mt-5 mb-2 px-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-sage-300 dark:text-dark-text-muted/50">Admin</p>
+              </div>
+              <ul className="space-y-1">
+                <li>
+                  <NavButton label="Signup Requests" icon={ShieldCheck} to="/admin/signup-requests" />
+                </li>
+              </ul>
+            </>
+          )}
         </nav>
 
         {/* Settings */}
         <div className="px-3 pb-2">
-          <button
-            type="button"
-            onClick={() => handleNav("/settings")}
-            className={`
-              w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-              transition-colors duration-150
-              ${
-                currentPath === "/settings"
-                  ? "bg-primary/15 text-primary-dark dark:text-primary"
-                  : "text-earth-800 dark:text-dark-text hover:bg-sage-50 dark:hover:bg-dark-surface hover:text-earth-900 dark:hover:text-dark-text"
-              }
-            `}
-          >
-            <Settings
-              className={`h-5 w-5 shrink-0 ${
-                currentPath === "/settings"
-                  ? "text-primary-dark dark:text-primary"
-                  : "text-sage-400 dark:text-dark-text-muted"
-              }`}
-            />
-            Settings
-            {currentPath === "/settings" && (
-              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
-            )}
-          </button>
+          <NavButton label="Settings" icon={Settings} to="/settings" />
         </div>
 
         <Separator className="bg-sage-200 dark:bg-dark-border" />
