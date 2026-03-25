@@ -15,7 +15,8 @@ export const Route = createFileRoute("/_authenticated/home")({
 })
 
 interface OnThisDayItem {
-  type: string  // "birth" | "death" | "marriage"
+  type: string
+  person_id: string | null
   person_name: string
   year: number | null
   detail: string | null
@@ -144,16 +145,24 @@ function HomePage() {
                         : "bg-sage-50/70 dark:bg-dark-surface/50 border-sage-200/50 dark:border-dark-border/50"
                     const iconColor = item.type === "birth" ? "text-blue-500" : item.type === "marriage" ? "text-pink-500" : "text-sage-400"
 
-                    return (
-                      <div key={i} className={`flex items-center gap-3 border rounded-xl px-4 py-3 ${bgClass}`}>
+                    const content = (
+                      <div className={`flex items-center gap-3 border rounded-xl px-4 py-3 ${bgClass} ${item.person_id ? "hover:shadow-md transition-shadow" : ""}`}>
                         <Icon className={`h-4 w-4 flex-shrink-0 ${iconColor}`} />
                         <p className="text-sm text-earth-900 dark:text-dark-text flex-1">
                           <span className="font-semibold">{item.person_name}</span>
                           {item.type === "birth" && <> was born on this day{item.year ? ` in ${item.year}` : ""}</>}
                           {item.type === "death" && <> passed away on this day{item.year ? ` in ${item.year}` : ""}</>}
-                          {item.type === "marriage" && <> was married on this day{item.year ? ` in ${item.year}` : ""}</>}
+                          {item.type === "marriage" && <> married on this day{item.year ? ` in ${item.year}` : ""}</>}
                         </p>
                       </div>
+                    )
+
+                    return item.person_id ? (
+                      <Link key={i} to="/person/$personId" params={{ personId: item.person_id }}>
+                        {content}
+                      </Link>
+                    ) : (
+                      <div key={i}>{content}</div>
                     )
                   })}
                 </div>
