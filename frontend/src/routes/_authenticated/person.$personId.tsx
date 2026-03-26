@@ -922,8 +922,6 @@ function PersonProfilePage() {
                   personId={personId}
                   person={person}
                   grouped={grouped}
-                  allRelationships={relationships ?? []}
-                  relatedPersons={relatedPersons ?? new Map()}
                   canEdit={!!canEdit}
                   onAddRelationship={() => setAddRelOpen(true)}
                 />

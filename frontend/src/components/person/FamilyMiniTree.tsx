@@ -1,8 +1,10 @@
 import { useMemo } from "react"
 import { Link } from "@tanstack/react-router"
+import { useQuery } from "@tanstack/react-query"
 import { Heart, Plus } from "lucide-react"
 import type { Person } from "../../types/person"
 import type { Relationship } from "../../types/relationship"
+import { api } from "../../lib/api"
 
 interface GroupedRelationships {
   parents: { relationship: Relationship; person: Person }[]
@@ -14,10 +16,6 @@ interface FamilyMiniTreeProps {
   personId: string
   person: Person
   grouped: GroupedRelationships
-  /** All raw relationships for this person — needed to determine which children are shared with which spouse */
-  allRelationships: Relationship[]
-  /** Map of all related person objects by ID */
-  relatedPersons: Map<string, Person>
   canEdit: boolean
   onAddRelationship: () => void
 }
@@ -67,54 +65,63 @@ function MiniNode({ person, isCurrent, size = "md" }: { person: Person; isCurren
   )
 }
 
-export function FamilyMiniTree({ person, grouped, allRelationships, canEdit, onAddRelationship }: FamilyMiniTreeProps) {
+interface SpouseRelApi {
+  id: string
+  person_id: string
+  related_person_id: string
+  relationship: string
+}
+
+export function FamilyMiniTree({ personId, person, grouped, canEdit, onAddRelationship }: FamilyMiniTreeProps) {
   const hasParents = grouped.parents.length > 0
   const hasSpouses = grouped.spouses.length > 0
   const hasChildren = grouped.children.length > 0
   const isEmpty = !hasParents && !hasSpouses && !hasChildren
 
-  // Group children by which spouse they share as a co-parent
-  // A child is "shared" with a spouse if the spouse is also a parent of that child
+  // For each spouse, fetch THEIR relationships to find which children they share
+  const spouseIds = grouped.spouses.map((s) => s.person.id)
+  const { data: spouseRelationships } = useQuery<Record<string, string[]>>({
+    queryKey: ["spouse-children", personId, spouseIds],
+    queryFn: async () => {
+      const result: Record<string, string[]> = {}
+      for (const spId of spouseIds) {
+        const res = await api.get<SpouseRelApi[]>("/relationships", { params: { person_id: spId } })
+        // Find children: person_id = child, related_person_id = spouse (spouse is parent)
+        const childIds = res.data
+          .filter((r) => r.relationship === "parent_child" && r.related_person_id === spId)
+          .map((r) => r.person_id)
+        result[spId] = childIds
+      }
+      return result
+    },
+    enabled: hasSpouses && hasChildren,
+    staleTime: 300_000,
+  })
+
+  // Group children by co-parent spouse
   const childrenBySpouse = useMemo(() => {
     if (!hasChildren) return []
-
-    // Build a set of each spouse's children
-    const spouseChildSets = new Map<string, Set<string>>() // spouseId -> set of child IDs
-    for (const sp of grouped.spouses) {
-      const spouseChildren = new Set<string>()
-      for (const rel of allRelationships) {
-        if (rel.relationship !== "parent_child") continue
-        // rel.personId = child, rel.relatedPersonId = parent
-        // Check if this spouse is a parent of this child
-        if (rel.relatedPersonId === sp.person.id) {
-          spouseChildren.add(rel.personId)
-        }
-        if (rel.personId === sp.person.id) {
-          // Check reverse: maybe spouse is the child? No — we only care about spouse as parent
-        }
-      }
-      spouseChildSets.set(sp.person.id, spouseChildren)
-    }
 
     const groups: { spouse: Person | null; children: Person[] }[] = []
     const assignedChildren = new Set<string>()
 
-    // For each spouse, find shared children
-    for (const sp of grouped.spouses) {
-      const spouseChildren = spouseChildSets.get(sp.person.id) ?? new Set()
-      const shared: Person[] = []
-      for (const { person: child } of grouped.children) {
-        if (spouseChildren.has(child.id)) {
-          shared.push(child)
-          assignedChildren.add(child.id)
+    if (spouseRelationships) {
+      for (const sp of grouped.spouses) {
+        const spouseChildIds = new Set(spouseRelationships[sp.person.id] ?? [])
+        const shared: Person[] = []
+        for (const { person: child } of grouped.children) {
+          if (spouseChildIds.has(child.id)) {
+            shared.push(child)
+            assignedChildren.add(child.id)
+          }
         }
-      }
-      if (shared.length > 0) {
-        groups.push({ spouse: sp.person, children: shared })
+        if (shared.length > 0) {
+          groups.push({ spouse: sp.person, children: shared })
+        }
       }
     }
 
-    // Remaining children (not shared with any spouse)
+    // Remaining children not shared with any spouse
     const soloChildren: Person[] = []
     for (const { person: child } of grouped.children) {
       if (!assignedChildren.has(child.id)) {
@@ -126,7 +133,7 @@ export function FamilyMiniTree({ person, grouped, allRelationships, canEdit, onA
     }
 
     return groups
-  }, [grouped, allRelationships, hasChildren])
+  }, [grouped, spouseRelationships, hasChildren])
 
   if (isEmpty) {
     return (
@@ -157,31 +164,28 @@ export function FamilyMiniTree({ person, grouped, allRelationships, canEdit, onA
           </>
         )}
 
-        {/* Current person row (no spouse shown here — spouses shown with their children below) */}
+        {/* Current person */}
         <MiniNode person={person} isCurrent />
 
-        {/* Children grouped by co-parent spouse */}
+        {/* Children grouped by co-parent */}
         {childrenBySpouse.map((group, i) => (
           <div key={i} className="flex flex-col items-center gap-2 w-full">
             <div className="w-px h-3 bg-sage-200 dark:bg-dark-border" />
 
-            {/* Spouse label for this group */}
             {group.spouse ? (
               <div className="flex items-center gap-2">
+                <span className="text-[9px] text-sage-300 dark:text-dark-text-muted/50">with</span>
                 <div className="flex items-center gap-0.5">
-                  <div className="w-3 h-px bg-sage-300 dark:bg-dark-border" />
-                  <Heart className="h-3 w-3 text-sage-300 dark:text-dark-border" />
-                  <div className="w-3 h-px bg-sage-300 dark:bg-dark-border" />
+                  <Heart className="h-3 w-3 text-pink-300" />
                 </div>
                 <MiniNode person={group.spouse} size="sm" />
               </div>
             ) : hasSpouses ? (
-              <p className="text-[9px] text-sage-300 dark:text-dark-text-muted/50 uppercase tracking-wider">From a previous relationship</p>
+              <p className="text-[9px] text-sage-300 dark:text-dark-text-muted/50 italic">From a previous relationship</p>
             ) : null}
 
             <div className="w-px h-2 bg-sage-200 dark:bg-dark-border" />
 
-            {/* Children in this group */}
             <div className="flex items-center gap-3 flex-wrap justify-center">
               {group.children.map((c) => (
                 <MiniNode key={c.id} person={c} size="sm" />
@@ -190,14 +194,14 @@ export function FamilyMiniTree({ person, grouped, allRelationships, canEdit, onA
           </div>
         ))}
 
-        {/* Spouses with no children (just show the marriage connection) */}
+        {/* Spouses with no children shown as simple connection */}
         {grouped.spouses
           .filter((sp) => !childrenBySpouse.some((g) => g.spouse?.id === sp.person.id))
           .map(({ person: sp }) => (
             <div key={sp.id} className="flex items-center gap-2 mt-1">
               <div className="flex items-center gap-0.5">
                 <div className="w-3 h-px bg-sage-300 dark:bg-dark-border" />
-                <Heart className="h-3 w-3 text-sage-300 dark:text-dark-border" />
+                <Heart className="h-3 w-3 text-pink-300" />
                 <div className="w-3 h-px bg-sage-300 dark:bg-dark-border" />
               </div>
               <MiniNode person={sp} size="sm" />
@@ -205,7 +209,6 @@ export function FamilyMiniTree({ person, grouped, allRelationships, canEdit, onA
           ))}
       </div>
 
-      {/* Add button */}
       {canEdit && (
         <div className="flex justify-center mt-4 pt-3 border-t border-sage-100 dark:border-dark-border">
           <button onClick={onAddRelationship}
