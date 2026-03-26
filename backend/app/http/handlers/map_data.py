@@ -147,7 +147,7 @@ async def get_map_places(
 @router.get("/ancestor-trail/{person_id}", response_model=AncestorTrailResponse)
 async def get_ancestor_trail(
     person_id: uuid.UUID,
-    max_generations: int = Query(10, ge=1, le=20),
+    max_generations: int = Query(10, ge=0, le=20),
     db: AsyncSession = Depends(get_db),
 ):
     """Get places for a person and all their ancestors, with generation depth.
