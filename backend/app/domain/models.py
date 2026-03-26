@@ -258,7 +258,7 @@ class SignupRequest(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     first_name: Mapped[str] = mapped_column(String(128), nullable=False)
     last_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    status: Mapped[SignupStatus] = mapped_column(Enum(SignupStatus, name="signup_status"), nullable=False, default=SignupStatus.PENDING)
+    status: Mapped[SignupStatus] = mapped_column(Enum(SignupStatus, name="signup_status", values_callable=lambda e: [m.value for m in e]), nullable=False, default=SignupStatus.PENDING)
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     reject_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
