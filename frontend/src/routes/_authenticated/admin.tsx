@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Shield, Users, ScrollText, Check, X, Loader2, ChevronDown,
-  UserCheck, Filter,
+  UserCheck, Filter, KeyRound, Plus, Trash2, Copy,
 } from "lucide-react"
 import { api } from "../../lib/api"
 import { AppHeader } from "../../components/layout/AppHeader"
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
 })
 
-type Tab = "users" | "audit"
+type Tab = "users" | "codes" | "audit"
 
 // --- Types ---
 
@@ -402,6 +402,157 @@ function AuditTab() {
   )
 }
 
+// --- Codes Tab ---
+
+interface SignupCodeData {
+  id: string; code: string; label: string | null; role: string
+  max_uses: number | null; use_count: number; is_active: boolean
+  expires_at: string | null; created_at: string
+}
+
+function CodesTab() {
+  const queryClient = useQueryClient()
+  const [showForm, setShowForm] = useState(false)
+  const [newCode, setNewCode] = useState("")
+  const [newLabel, setNewLabel] = useState("")
+  const [newRole, setNewRole] = useState("editor")
+  const [newMaxUses, setNewMaxUses] = useState("")
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const { data: codes, isLoading } = useQuery<SignupCodeData[]>({
+    queryKey: ["admin-signup-codes"],
+    queryFn: async () => { const res = await api.get("/admin/signup-codes"); return res.data },
+  })
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/admin/signup-codes", {
+        code: newCode, label: newLabel || null, role: newRole,
+        max_uses: newMaxUses ? parseInt(newMaxUses) : null,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-signup-codes"] })
+      setShowForm(false); setNewCode(""); setNewLabel(""); setNewRole("editor"); setNewMaxUses("")
+    },
+  })
+
+  const toggleMutation = useMutation({
+    mutationFn: async (codeId: string) => { await api.put(`/admin/signup-codes/${codeId}/toggle`) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-signup-codes"] }) },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (codeId: string) => { await api.delete(`/admin/signup-codes/${codeId}`) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-signup-codes"] }) },
+  })
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code)
+    setCopied(code)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-earth-900 dark:text-dark-text flex items-center gap-2">
+            <KeyRound className="h-5 w-5 text-primary" /> Signup Codes
+          </h2>
+          <p className="text-xs text-sage-400 mt-1">Share codes with family members so they can sign up without approval.</p>
+        </div>
+        <button onClick={() => setShowForm(true)}
+          className="flex items-center gap-1.5 px-3 py-2 bg-primary text-earth-900 font-medium text-sm rounded-xl hover:bg-primary-dark hover:text-white transition-colors">
+          <Plus className="h-4 w-4" /> New Code
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-primary/30 p-5 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-sage-400 mb-1 block">Code</label>
+              <input type="text" value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="e.g., THIRLWALL2026"
+                className="w-full rounded-lg border border-sage-200 dark:border-dark-border bg-sage-50 dark:bg-dark-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-dark/20" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-sage-400 mb-1 block">Label (for your reference)</label>
+              <input type="text" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="e.g., Family reunion 2026"
+                className="w-full rounded-lg border border-sage-200 dark:border-dark-border bg-sage-50 dark:bg-dark-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-dark/20" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-sage-400 mb-1 block">Role assigned</label>
+              <select value={newRole} onChange={(e) => setNewRole(e.target.value)}
+                className="w-full rounded-lg border border-sage-200 dark:border-dark-border bg-sage-50 dark:bg-dark-surface px-3 py-2 text-sm focus:outline-none">
+                <option value="editor">Editor</option>
+                <option value="viewer">Viewer</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-sage-400 mb-1 block">Max uses (blank = unlimited)</label>
+              <input type="number" value={newMaxUses} onChange={(e) => setNewMaxUses(e.target.value)} placeholder="Unlimited"
+                className="w-full rounded-lg border border-sage-200 dark:border-dark-border bg-sage-50 dark:bg-dark-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-dark/20" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setShowForm(false)} className="px-3 py-1.5 text-sm text-sage-400">Cancel</button>
+            <button onClick={() => createMutation.mutate()} disabled={!newCode.trim() || createMutation.isPending}
+              className="flex items-center gap-1 px-4 py-1.5 bg-primary-dark text-white text-sm font-medium rounded-lg hover:bg-primary hover:text-earth-900 transition-colors disabled:opacity-50">
+              {createMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              Create
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isLoading && <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>}
+
+      {codes?.length === 0 && !isLoading && (
+        <div className="text-center py-8 bg-white/80 dark:bg-dark-card/80 rounded-xl border border-sage-200 dark:border-dark-border">
+          <KeyRound className="h-8 w-8 text-sage-300 mx-auto mb-2" />
+          <p className="text-sage-400 text-sm">No signup codes yet.</p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {codes?.map((c) => (
+          <div key={c.id} className="bg-white dark:bg-dark-card rounded-xl border border-sage-200 dark:border-dark-border p-4 flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <code className="text-sm font-mono font-bold text-earth-900 dark:text-dark-text bg-sage-50 dark:bg-dark-surface px-2 py-0.5 rounded">{c.code}</code>
+                <button onClick={() => copyCode(c.code)} className="text-sage-400 hover:text-primary-dark transition-colors" title="Copy code">
+                  {copied === c.code ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
+                </button>
+                <span className={cn("text-[10px] font-bold uppercase px-1.5 py-0.5 rounded", c.is_active ? "bg-primary/10 text-primary-dark" : "bg-red-50 text-red-600")}>
+                  {c.is_active ? "Active" : "Inactive"}
+                </span>
+                <span className={cn("text-[10px] font-bold uppercase px-1.5 py-0.5 rounded", roleBadge(c.role))}>{c.role}</span>
+              </div>
+              {c.label && <p className="text-xs text-sage-400 mt-1">{c.label}</p>}
+              <p className="text-[10px] text-sage-300 mt-0.5">
+                {c.use_count} uses{c.max_uses ? ` / ${c.max_uses} max` : ""}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={() => toggleMutation.mutate(c.id)}
+                className="text-xs text-sage-400 hover:text-earth-900 transition-colors">
+                {c.is_active ? "Disable" : "Enable"}
+              </button>
+              <button onClick={() => deleteMutation.mutate(c.id)}
+                className="p-1 text-sage-300 hover:text-red-500 transition-colors">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // --- Main Admin Page ---
 
 function AdminPage() {
@@ -447,6 +598,15 @@ function AdminPage() {
             <Users className="h-3.5 w-3.5" /> Users
           </button>
           <button
+            onClick={() => setActiveTab("codes")}
+            className={cn("flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors",
+              activeTab === "codes"
+                ? "border-primary text-primary-dark dark:text-primary"
+                : "border-transparent text-sage-400 hover:text-earth-900")}
+          >
+            <KeyRound className="h-3.5 w-3.5" /> Signup Codes
+          </button>
+          <button
             onClick={() => setActiveTab("audit")}
             className={cn("flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors",
               activeTab === "audit"
@@ -459,6 +619,7 @@ function AdminPage() {
 
         {/* Tab content */}
         {activeTab === "users" && <UsersTab />}
+        {activeTab === "codes" && <CodesTab />}
         {activeTab === "audit" && <AuditTab />}
       </div>
     </div>

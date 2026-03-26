@@ -328,6 +328,22 @@ class FamilyTraditionPerson(Base):
     person_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="CASCADE"), primary_key=True)
 
 
+class SignupCode(Base):
+    """Reusable invite codes that let users bypass the approval flow."""
+    __tablename__ = "signup_codes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    label: Mapped[str | None] = mapped_column(String(128), nullable=True)  # admin-visible label
+    role: Mapped[str] = mapped_column(String(16), nullable=False, default="editor")  # role assigned to users
+    max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)  # null = unlimited
+    use_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    expires_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+
+
 class AuditLog(Base):
     """Tracks all user actions for the admin audit trail."""
     __tablename__ = "audit_logs"

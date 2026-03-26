@@ -15,7 +15,7 @@ from app.auth.cognito import get_current_user
 from app.config import settings
 from app.deps import get_db
 from app.domain.enums import SignupStatus, UserRole
-from app.domain.models import AuditLog, OnboardToken, SignupRequest, User
+from app.domain.models import AuditLog, OnboardToken, SignupCode, SignupRequest, User
 from app.http.schemas.signup import RejectBody, SignupRequestResponse
 from app.services.audit_service import log_audit
 from app.services.email_service import send_onboard_email
@@ -341,3 +341,113 @@ async def toggle_user_active(
                     entity_id=user_id, entity_label=user.display_name,
                     details={"field": "is_active", "value": user.is_active})
     return {"detail": f"User {'activated' if user.is_active else 'deactivated'}.", "is_active": user.is_active}
+
+
+# ---------------------------------------------------------------------------
+# Signup Codes
+# ---------------------------------------------------------------------------
+
+
+class SignupCodeResponse(BaseModel):
+    id: str
+    code: str
+    label: str | None
+    role: str
+    max_uses: int | None
+    use_count: int
+    is_active: bool
+    expires_at: datetime | None
+    created_at: datetime
+
+
+class CreateSignupCodeBody(BaseModel):
+    code: str
+    label: str | None = None
+    role: str = "editor"
+    max_uses: int | None = None
+    expires_at: str | None = None  # ISO datetime
+
+
+@router.get("/signup-codes", response_model=list[SignupCodeResponse])
+async def list_signup_codes(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all signup codes."""
+    _require_admin(current_user)
+    result = await db.execute(select(SignupCode).order_by(SignupCode.created_at.desc()))
+    codes = result.scalars().all()
+    return [
+        SignupCodeResponse(
+            id=str(c.id), code=c.code, label=c.label,
+            role=c.role, max_uses=c.max_uses, use_count=c.use_count,
+            is_active=c.is_active, expires_at=c.expires_at, created_at=c.created_at,
+        )
+        for c in codes
+    ]
+
+
+@router.post("/signup-codes", response_model=SignupCodeResponse, status_code=201)
+async def create_signup_code(
+    body: CreateSignupCodeBody,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new signup code."""
+    _require_admin(current_user)
+    if body.role not in ("admin", "editor", "viewer"):
+        raise HTTPException(status_code=400, detail="Invalid role.")
+
+    # Check for duplicate code
+    existing = await db.execute(select(SignupCode).where(SignupCode.code == body.code))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Code already exists.")
+
+    expires = datetime.fromisoformat(body.expires_at) if body.expires_at else None
+
+    code = SignupCode(
+        code=body.code, label=body.label, role=body.role,
+        max_uses=body.max_uses, expires_at=expires,
+        created_by=current_user.id,
+    )
+    db.add(code)
+    await db.flush()
+    await db.refresh(code)
+
+    return SignupCodeResponse(
+        id=str(code.id), code=code.code, label=code.label,
+        role=code.role, max_uses=code.max_uses, use_count=code.use_count,
+        is_active=code.is_active, expires_at=code.expires_at, created_at=code.created_at,
+    )
+
+
+@router.put("/signup-codes/{code_id}/toggle")
+async def toggle_signup_code(
+    code_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Toggle a signup code active/inactive."""
+    _require_admin(current_user)
+    result = await db.execute(select(SignupCode).where(SignupCode.id == code_id))
+    code = result.scalar_one_or_none()
+    if not code:
+        raise HTTPException(status_code=404, detail="Code not found.")
+    code.is_active = not code.is_active
+    await db.flush()
+    return {"is_active": code.is_active}
+
+
+@router.delete("/signup-codes/{code_id}", status_code=204)
+async def delete_signup_code(
+    code_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a signup code."""
+    _require_admin(current_user)
+    result = await db.execute(select(SignupCode).where(SignupCode.id == code_id))
+    code = result.scalar_one_or_none()
+    if not code:
+        raise HTTPException(status_code=404, detail="Code not found.")
+    await db.delete(code)

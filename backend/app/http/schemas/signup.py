@@ -10,6 +10,7 @@ class RequestAccessBody(BaseModel):
     email: EmailStr
     first_name: str
     last_name: str
+    signup_code: str | None = None
 
 
 class SignupRequestResponse(BaseModel):

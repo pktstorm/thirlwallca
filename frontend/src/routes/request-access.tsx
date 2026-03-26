@@ -1,6 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { useState } from "react"
-import { Mail, User, Loader2, ArrowLeft, CheckCircle } from "lucide-react"
+import { Mail, User, Loader2, ArrowLeft, CheckCircle, KeyRound } from "lucide-react"
 import { api } from "../lib/api"
 
 export const Route = createFileRoute("/request-access")({
@@ -8,9 +8,11 @@ export const Route = createFileRoute("/request-access")({
 })
 
 function RequestAccessPage() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState("")
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
+  const [signupCode, setSignupCode] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -21,11 +23,22 @@ function RequestAccessPage() {
     setIsLoading(true)
 
     try {
-      const { data } = await api.post("/auth/request-access", {
+      const payload: Record<string, string> = {
         email,
         first_name: firstName,
         last_name: lastName,
-      })
+      }
+      if (signupCode.trim()) {
+        payload.signup_code = signupCode.trim()
+      }
+      const { data } = await api.post("/auth/request-access", payload)
+
+      // If auto-approved via signup code, redirect to onboard page
+      if (data.auto_approved && data.onboard_token) {
+        navigate({ to: `/onboard?token=${data.onboard_token}` } as any)
+        return
+      }
+
       setSuccessMessage(data.detail)
     } catch (err: any) {
       const message = err.response?.data?.detail || err.message || "Something went wrong. Please try again."
@@ -164,13 +177,37 @@ function RequestAccessPage() {
                   </div>
                 </div>
 
+                {/* Signup code (optional) */}
+                <div>
+                  <label
+                    htmlFor="signupCode"
+                    className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-dark-text-muted"
+                  >
+                    Signup code <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <input
+                      id="signupCode"
+                      type="text"
+                      value={signupCode}
+                      onChange={(e) => setSignupCode(e.target.value)}
+                      placeholder="Enter code if you have one"
+                      className="w-full rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface py-2.5 pl-10 pr-4 text-sm text-gray-900 dark:text-dark-text placeholder:text-gray-400 dark:placeholder:text-dark-text-muted focus:border-primary-dark focus:outline-none focus:ring-2 focus:ring-primary-dark/20"
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-400 dark:text-dark-text-muted">
+                    If you received a signup code, enter it to skip the approval process.
+                  </p>
+                </div>
+
                 <button
                   type="submit"
                   disabled={isLoading}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-dark py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary hover:text-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {isLoading ? "Submitting..." : "Submit Request"}
+                  {isLoading ? "Submitting..." : signupCode.trim() ? "Sign Up" : "Submit Request"}
                 </button>
               </form>
 

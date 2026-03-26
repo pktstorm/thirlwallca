@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.deps import get_db
-from app.domain.models import OnboardToken, SignupRequest, User
+from app.domain.models import OnboardToken, SignupCode, SignupRequest, User
 from app.domain.enums import SignupStatus
 from app.http.schemas.signup import (
     OnboardCompleteBody,
@@ -35,7 +35,85 @@ async def request_access(
     body: RequestAccessBody,
     db: AsyncSession = Depends(get_db),
 ):
-    """Submit a signup request. No authentication required."""
+    """Submit a signup request. If a valid signup_code is provided, bypass approval."""
+    from datetime import timedelta
+
+    # Check if email already has a Cognito/User account
+    result = await db.execute(select(User).where(User.email == body.email))
+    if result.scalar_one_or_none():
+        return {"detail": "An account with this email already exists. Please sign in."}
+
+    # --- Signup code fast-path: bypass approval entirely ---
+    if body.signup_code:
+        result = await db.execute(
+            select(SignupCode).where(SignupCode.code == body.signup_code)
+        )
+        code_obj = result.scalar_one_or_none()
+
+        if not code_obj:
+            raise HTTPException(status_code=400, detail="Invalid signup code.")
+        if not code_obj.is_active:
+            raise HTTPException(status_code=400, detail="This signup code is no longer active.")
+        if code_obj.expires_at and code_obj.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="This signup code has expired.")
+        if code_obj.max_uses and code_obj.use_count >= code_obj.max_uses:
+            raise HTTPException(status_code=400, detail="This signup code has reached its maximum uses.")
+
+        # Create Cognito user
+        if settings.cognito_user_pool_id:
+            client = boto3.client("cognito-idp", region_name=settings.cognito_region)
+            try:
+                temp_password = secrets.token_urlsafe(16) + "!A1"
+                client.admin_create_user(
+                    UserPoolId=settings.cognito_user_pool_id,
+                    Username=body.email,
+                    UserAttributes=[
+                        {"Name": "email", "Value": body.email},
+                        {"Name": "email_verified", "Value": "true"},
+                        {"Name": "name", "Value": f"{body.first_name} {body.last_name}"},
+                        {"Name": "custom:role", "Value": code_obj.role},
+                    ],
+                    TemporaryPassword=temp_password,
+                    MessageAction="SUPPRESS",
+                )
+            except ClientError as exc:
+                if exc.response["Error"]["Code"] != "UsernameExistsException":
+                    logger.error("Failed to create Cognito user: %s", exc)
+                    raise HTTPException(status_code=500, detail="Failed to create account.") from exc
+
+        # Create signup request as already approved
+        req = SignupRequest(
+            email=body.email,
+            first_name=body.first_name,
+            last_name=body.last_name,
+            status=SignupStatus.APPROVED,
+            reviewed_at=datetime.now(timezone.utc),
+        )
+        db.add(req)
+        await db.flush()
+
+        # Generate onboard token
+        token = secrets.token_urlsafe(48)
+        onboard = OnboardToken(
+            signup_request_id=req.id,
+            email=body.email,
+            token=token,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        )
+        db.add(onboard)
+
+        # Increment use count
+        code_obj.use_count += 1
+        await db.flush()
+
+        return {
+            "detail": "Code accepted! Set up your password to complete registration.",
+            "auto_approved": True,
+            "onboard_token": token,
+        }
+
+    # --- Normal flow: submit for admin approval ---
+
     # Check for existing request
     result = await db.execute(
         select(SignupRequest).where(SignupRequest.email == body.email)
@@ -48,7 +126,6 @@ async def request_access(
         if existing.status == SignupStatus.APPROVED:
             return {"detail": "Your request has already been approved. Check your email for the setup link."}
         if existing.status == SignupStatus.REJECTED:
-            # Allow re-request after rejection
             existing.status = SignupStatus.PENDING
             existing.first_name = body.first_name
             existing.last_name = body.last_name
@@ -57,11 +134,6 @@ async def request_access(
             existing.reject_reason = None
             await db.flush()
             return {"detail": "Your request has been resubmitted for review."}
-
-    # Also check if email already has a Cognito/User account
-    result = await db.execute(select(User).where(User.email == body.email))
-    if result.scalar_one_or_none():
-        return {"detail": "An account with this email already exists. Please sign in."}
 
     req = SignupRequest(
         email=body.email,
