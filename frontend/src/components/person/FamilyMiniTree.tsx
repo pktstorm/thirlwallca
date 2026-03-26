@@ -53,10 +53,10 @@ function MiniNode({ person, isCurrent, size = "md" }: { person: Person; isCurren
           </div>
         )}
       </div>
-      <span className={`${textSize} font-medium text-center leading-tight max-w-16 truncate ${
+      <span className={`${textSize} font-medium text-center leading-tight max-w-24 truncate ${
         isCurrent ? "text-primary-dark dark:text-primary" : "text-earth-900 dark:text-dark-text group-hover:text-primary-dark"
       }`}>
-        {person.firstName}
+        {person.firstName} {person.lastName}
       </span>
     </Link>
   )
