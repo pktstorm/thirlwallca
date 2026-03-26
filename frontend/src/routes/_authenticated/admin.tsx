@@ -116,12 +116,34 @@ function UsersTab() {
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
       await api.put(`/admin/users/${userId}/role`, null, { params: { role } })
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-users"] }) },
+    onMutate: async ({ userId, role }) => {
+      await queryClient.cancelQueries({ queryKey: ["admin-users"] })
+      const prev = queryClient.getQueryData<AdminUser[]>(["admin-users"])
+      queryClient.setQueryData<AdminUser[]>(["admin-users"], (old) =>
+        old?.map((u) => u.id === userId ? { ...u, role } : u)
+      )
+      return { prev }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) queryClient.setQueryData(["admin-users"], context.prev)
+    },
+    onSettled: () => { queryClient.invalidateQueries({ queryKey: ["admin-users"] }) },
   })
 
   const toggleActiveMutation = useMutation({
     mutationFn: async (userId: string) => { await api.put(`/admin/users/${userId}/deactivate`) },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-users"] }) },
+    onMutate: async (userId) => {
+      await queryClient.cancelQueries({ queryKey: ["admin-users"] })
+      const prev = queryClient.getQueryData<AdminUser[]>(["admin-users"])
+      queryClient.setQueryData<AdminUser[]>(["admin-users"], (old) =>
+        old?.map((u) => u.id === userId ? { ...u, is_active: !u.is_active } : u)
+      )
+      return { prev }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) queryClient.setQueryData(["admin-users"], context.prev)
+    },
+    onSettled: () => { queryClient.invalidateQueries({ queryKey: ["admin-users"] }) },
   })
 
   const pendingCount = signupRequests?.filter((r) => r.status === "pending").length ?? 0

@@ -143,12 +143,10 @@ async def _get_or_create_user(
     if user is not None:
         # Update last login
         user.last_login_at = datetime.now(timezone.utc)
-        # Sync role from Cognito claim if it changed
-        if role_claim and user.role != role:
-            user.role = role
         # Sync email from token claims
         if email and user.email != email:
             user.email = email
+        # Note: role is NOT synced from Cognito — the admin console is the source of truth
         await db.flush()
         return user
 
