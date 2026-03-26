@@ -138,18 +138,15 @@ export function buildFamilyUnits(
       spouse = a < b ? b : a
     }
 
-    // Collect ALL children of both parents (not just shared)
-    const allChildren = new Set<string>()
-    for (const c of aChildren) allChildren.add(c)
-    for (const c of bChildren) allChildren.add(c)
-
+    // Only assign SHARED children to the couple unit.
+    // Children belonging to only one parent will be handled in the solo-parent pass.
     const gen = generationMap.get(primary) ?? 0
 
     units.push({
       id: `${primary}+${spouse}`,
       primaryId: primary,
       spouseId: spouse,
-      childIds: [...allChildren].sort(),
+      childIds: [...sharedChildren].sort(),
       generation: gen,
     })
 
@@ -157,20 +154,49 @@ export function buildFamilyUnits(
     usedAsSpouse.add(spouse)
   }
 
-  // Second pass: solo parents (have children but no spouse in the data)
+  // Track which children are already assigned to a couple unit
+  const assignedChildren = new Set<string>()
+  for (const unit of units) {
+    for (const cid of unit.childIds) assignedChildren.add(cid)
+  }
+
+  // Second pass: solo parents OR parents with unassigned children
+  // This handles: (a) parents with no spouse, (b) parents in a couple who have
+  // additional children from a previous/different relationship
   for (const [parentId, children] of parentToChildren) {
-    if (usedAsPrimary.has(parentId) || usedAsSpouse.has(parentId)) continue
     if (!nodeIds.has(parentId)) continue
 
-    const gen = generationMap.get(parentId) ?? 0
-    units.push({
-      id: parentId,
-      primaryId: parentId,
-      spouseId: null,
-      childIds: [...children].sort(),
-      generation: gen,
-    })
-    usedAsPrimary.add(parentId)
+    // Find children of this parent that haven't been assigned to any couple unit
+    const unassigned = [...children].filter((c) => !assignedChildren.has(c))
+    if (unassigned.length === 0) continue
+
+    // Skip if already used as primary of a solo unit (prevent duplicates)
+    if (!usedAsPrimary.has(parentId) && !usedAsSpouse.has(parentId)) {
+      // Completely solo parent — not in any couple
+      const gen = generationMap.get(parentId) ?? 0
+      units.push({
+        id: parentId,
+        primaryId: parentId,
+        spouseId: null,
+        childIds: unassigned.sort(),
+        generation: gen,
+      })
+      usedAsPrimary.add(parentId)
+    } else {
+      // Parent is already in a couple, but has extra children from another relationship.
+      // Create an additional solo unit for just those children.
+      const gen = generationMap.get(parentId) ?? 0
+      const soloId = `${parentId}-solo`
+      units.push({
+        id: soloId,
+        primaryId: parentId,
+        spouseId: null,
+        childIds: unassigned.sort(),
+        generation: gen,
+      })
+    }
+
+    for (const c of unassigned) assignedChildren.add(c)
   }
 
   // Third pass: people with a spouse but no children
@@ -209,11 +235,19 @@ export function buildFamilyUnits(
     usedAsPrimary.add(node.id)
   }
 
-  // Build person -> unit map (maps individual person IDs to unit ID)
+  // Build person -> unit map
+  // For parents: map to their primary couple unit (first one found)
+  // For children: map to the unit they appear in as a child, then they'll
+  // become the primary of their own unit when they grow up / have families
   const personToUnit = new Map<string, string>()
   for (const unit of units) {
-    personToUnit.set(unit.primaryId, unit.id)
-    if (unit.spouseId) personToUnit.set(unit.spouseId, unit.id)
+    // Only set if not already mapped (first unit wins for the person themselves)
+    if (!personToUnit.has(unit.primaryId)) {
+      personToUnit.set(unit.primaryId, unit.id)
+    }
+    if (unit.spouseId && !personToUnit.has(unit.spouseId)) {
+      personToUnit.set(unit.spouseId, unit.id)
+    }
   }
 
   return { units, personToUnit, generationMap }
