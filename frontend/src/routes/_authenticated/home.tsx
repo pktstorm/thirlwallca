@@ -78,7 +78,7 @@ function HomePage() {
     <div className="min-h-screen bg-sage-50 dark:bg-bg-dark">
       <AppHeader />
 
-      <div className="max-w-5xl mx-auto px-4 py-6 sm:py-10 space-y-8">
+      <div className="max-w-5xl mx-auto px-4 pt-20 pb-6 sm:pt-24 sm:pb-10 space-y-8">
         {/* Welcome header */}
         <div className="flex items-center justify-between">
           <div>
