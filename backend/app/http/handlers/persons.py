@@ -20,6 +20,7 @@ from app.http.schemas.person import (
 from app.auth.rbac import require_role
 from app.domain.enums import UserRole
 from app.services.location_service import find_or_create_location, format_place_text
+from app.services.audit_service import log_audit
 
 router = APIRouter()
 
@@ -122,18 +123,21 @@ async def list_persons(
 @router.post("", response_model=PersonResponse, status_code=status.HTTP_201_CREATED)
 async def create_person(
     data: PersonCreate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Create person with non-place fields first
     dump = data.model_dump(exclude={"birth_place", "death_place"})
     person = Person(**dump)
     db.add(person)
     await db.flush()
 
-    # Resolve structured places
     await _resolve_places(data, person, db)
     await db.flush()
     await db.refresh(person)
+
+    await log_audit(db, user=current_user, action="create", entity_type="person",
+                    entity_id=person.id, entity_label=f"{person.first_name} {person.last_name}")
+
     return await _build_person_response(person, db)
 
 @router.get("/{person_id}", response_model=PersonResponse)
@@ -151,6 +155,7 @@ async def get_person(
 async def update_person(
     person_id: uuid.UUID,
     data: PersonUpdate,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Person).where(Person.id == person_id))
@@ -161,6 +166,10 @@ async def update_person(
     await _resolve_places(data, person, db)
     await db.flush()
     await db.refresh(person)
+
+    await log_audit(db, user=current_user, action="update", entity_type="person",
+                    entity_id=person.id, entity_label=f"{person.first_name} {person.last_name}")
+
     return await _build_person_response(person, db)
 
 @router.delete("/{person_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -178,7 +187,12 @@ async def delete_person(
     person = result.scalar_one_or_none()
     if not person:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
+    person_label = f"{person.first_name} {person.last_name}"
     await db.delete(person)
+
+    await log_audit(db, user=current_user, action="delete", entity_type="person",
+                    entity_id=person_id, entity_label=person_label)
+
     await db.commit()
 
 

@@ -163,7 +163,7 @@ export function NavSidebar() {
               </div>
               <ul className="space-y-1">
                 <li>
-                  <NavButton label="Signup Requests" icon={ShieldCheck} to="/admin/signup-requests" />
+                  <NavButton label="Administration" icon={ShieldCheck} to="/admin" />
                 </li>
               </ul>
             </>

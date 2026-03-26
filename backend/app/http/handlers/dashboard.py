@@ -222,53 +222,66 @@ async def get_dashboard(
                 "detail": f"Married on this day in {rel.marriage_date.year}" if rel.marriage_date else "Married on this day",
             })
 
-    # --- Recent Activity ---
+    # --- Recent Activity (from audit logs if available, else from entity tables) ---
+    from app.domain.models import AuditLog
+
     recent_activity: list[dict[str, Any]] = []
 
-    recent_persons = await db.execute(
-        select(Person)
-        .where(Person.created_at >= thirty_days_ago)
-        .order_by(Person.created_at.desc())
-        .limit(10)
+    audit_result = await db.execute(
+        select(AuditLog)
+        .where(AuditLog.created_at >= thirty_days_ago)
+        .order_by(AuditLog.created_at.desc())
+        .limit(20)
     )
-    for p in recent_persons.scalars().all():
-        recent_activity.append({
-            "type": "person",
-            "id": str(p.id),
-            "label": f"{p.first_name} {p.last_name}",
-            "created_at": p.created_at,
-        })
+    audit_logs = audit_result.scalars().all()
 
-    recent_stories = await db.execute(
-        select(Story)
-        .where(Story.created_at >= thirty_days_ago)
-        .order_by(Story.created_at.desc())
-        .limit(10)
-    )
-    for s in recent_stories.scalars().all():
-        recent_activity.append({
-            "type": "story",
-            "id": str(s.id),
-            "label": s.title,
-            "created_at": s.created_at,
-        })
+    if audit_logs:
+        for log in audit_logs:
+            label = ""
+            if log.user_name and log.entity_label:
+                label = f"{log.user_name} {log.action}d {log.entity_label}"
+            elif log.entity_label:
+                label = f"{log.entity_label} was {log.action}d"
+            else:
+                label = f"{log.action.capitalize()} {log.entity_type}"
 
-    recent_media = await db.execute(
-        select(Media)
-        .where(Media.created_at >= thirty_days_ago)
-        .order_by(Media.created_at.desc())
-        .limit(10)
-    )
-    for m in recent_media.scalars().all():
-        recent_activity.append({
-            "type": "media",
-            "id": str(m.id),
-            "label": m.title or m.s3_key,
-            "created_at": m.created_at,
-        })
+            recent_activity.append({
+                "type": log.entity_type,
+                "id": log.entity_id or str(log.id),
+                "label": label,
+                "created_at": log.created_at,
+            })
+    else:
+        # Fallback: use entity tables if no audit logs yet
+        recent_persons = await db.execute(
+            select(Person)
+            .where(Person.created_at >= thirty_days_ago)
+            .order_by(Person.created_at.desc())
+            .limit(10)
+        )
+        for p in recent_persons.scalars().all():
+            recent_activity.append({
+                "type": "person",
+                "id": str(p.id),
+                "label": f"{p.first_name} {p.last_name} was added",
+                "created_at": p.created_at,
+            })
 
-    # Sort combined recent activity by date descending
-    recent_activity.sort(key=lambda x: x["created_at"], reverse=True)
+        recent_stories = await db.execute(
+            select(Story)
+            .where(Story.created_at >= thirty_days_ago)
+            .order_by(Story.created_at.desc())
+            .limit(10)
+        )
+        for s in recent_stories.scalars().all():
+            recent_activity.append({
+                "type": "story",
+                "id": str(s.id),
+                "label": f"Story published: {s.title}",
+                "created_at": s.created_at,
+            })
+
+        recent_activity.sort(key=lambda x: x["created_at"], reverse=True)
 
     # --- Family Stats ---
     total_persons = (await db.execute(select(func.count()).select_from(Person))).scalar() or 0

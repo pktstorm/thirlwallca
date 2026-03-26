@@ -326,3 +326,18 @@ class FamilyTraditionPerson(Base):
 
     tradition_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("family_traditions.id", ondelete="CASCADE"), primary_key=True)
     person_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="CASCADE"), primary_key=True)
+
+
+class AuditLog(Base):
+    """Tracks all user actions for the admin audit trail."""
+    __tablename__ = "audit_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    user_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)  # create, update, delete
+    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)  # person, relationship, story, etc.
+    entity_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    entity_label: Mapped[str | None] = mapped_column(String(255), nullable=True)  # human-readable label
+    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # before/after or extra context
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)

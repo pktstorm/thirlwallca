@@ -1,4 +1,4 @@
-"""Admin endpoints for managing signup requests."""
+"""Admin endpoints for managing signup requests, users, and audit logs."""
 
 import logging
 import secrets
@@ -7,15 +7,17 @@ from datetime import datetime, timedelta, timezone
 import boto3
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from pydantic import BaseModel
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.cognito import get_current_user
 from app.config import settings
 from app.deps import get_db
 from app.domain.enums import SignupStatus, UserRole
-from app.domain.models import OnboardToken, SignupRequest, User
+from app.domain.models import AuditLog, OnboardToken, SignupRequest, User
 from app.http.schemas.signup import RejectBody, SignupRequestResponse
+from app.services.audit_service import log_audit
 from app.services.email_service import send_onboard_email
 
 logger = logging.getLogger(__name__)
@@ -149,3 +151,193 @@ async def reject_signup_request(
 
     await db.refresh(req)
     return req
+
+
+# ---------------------------------------------------------------------------
+# Audit Logs
+# ---------------------------------------------------------------------------
+
+
+class AuditLogResponse(BaseModel):
+    id: str
+    user_id: str | None
+    user_name: str | None
+    action: str
+    entity_type: str
+    entity_id: str | None
+    entity_label: str | None
+    details: dict | None
+    created_at: datetime
+
+
+class AuditStatsResponse(BaseModel):
+    total_entries: int
+    actions: dict[str, int]
+    entity_types: dict[str, int]
+    top_users: list[dict]
+
+
+@router.get("/audit-logs", response_model=list[AuditLogResponse])
+async def list_audit_logs(
+    user_id: str | None = Query(None),
+    action: str | None = Query(None),
+    entity_type: str | None = Query(None),
+    date_from: str | None = Query(None, description="ISO date: YYYY-MM-DD"),
+    date_to: str | None = Query(None, description="ISO date: YYYY-MM-DD"),
+    skip: int = 0,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List audit log entries with optional filters."""
+    _require_admin(current_user)
+
+    stmt = select(AuditLog).order_by(AuditLog.created_at.desc())
+
+    if user_id:
+        stmt = stmt.where(AuditLog.user_id == user_id)
+    if action:
+        stmt = stmt.where(AuditLog.action == action)
+    if entity_type:
+        stmt = stmt.where(AuditLog.entity_type == entity_type)
+    if date_from:
+        stmt = stmt.where(AuditLog.created_at >= datetime.fromisoformat(date_from))
+    if date_to:
+        dt_to = datetime.fromisoformat(date_to) + timedelta(days=1)
+        stmt = stmt.where(AuditLog.created_at < dt_to)
+
+    stmt = stmt.offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    logs = result.scalars().all()
+
+    return [
+        AuditLogResponse(
+            id=str(log.id),
+            user_id=str(log.user_id) if log.user_id else None,
+            user_name=log.user_name,
+            action=log.action,
+            entity_type=log.entity_type,
+            entity_id=log.entity_id,
+            entity_label=log.entity_label,
+            details=log.details,
+            created_at=log.created_at,
+        )
+        for log in logs
+    ]
+
+
+@router.get("/audit-stats", response_model=AuditStatsResponse)
+async def get_audit_stats(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get aggregate stats for the audit log."""
+    _require_admin(current_user)
+
+    total = await db.execute(select(func.count(AuditLog.id)))
+    total_count = total.scalar() or 0
+
+    actions_result = await db.execute(
+        select(AuditLog.action, func.count(AuditLog.id)).group_by(AuditLog.action)
+    )
+    actions = {row[0]: row[1] for row in actions_result.all()}
+
+    entities_result = await db.execute(
+        select(AuditLog.entity_type, func.count(AuditLog.id)).group_by(AuditLog.entity_type)
+    )
+    entity_types = {row[0]: row[1] for row in entities_result.all()}
+
+    users_result = await db.execute(
+        select(AuditLog.user_name, func.count(AuditLog.id))
+        .where(AuditLog.user_name.isnot(None))
+        .group_by(AuditLog.user_name)
+        .order_by(func.count(AuditLog.id).desc())
+        .limit(10)
+    )
+    top_users = [{"name": row[0], "count": row[1]} for row in users_result.all()]
+
+    return AuditStatsResponse(
+        total_entries=total_count, actions=actions,
+        entity_types=entity_types, top_users=top_users,
+    )
+
+
+# ---------------------------------------------------------------------------
+# User Management
+# ---------------------------------------------------------------------------
+
+
+class AdminUserResponse(BaseModel):
+    id: str
+    email: str
+    display_name: str
+    role: str
+    is_active: bool
+    last_login_at: datetime | None
+    linked_person_id: str | None
+    created_at: datetime
+
+
+@router.get("/users", response_model=list[AdminUserResponse])
+async def list_users(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all users."""
+    _require_admin(current_user)
+    result = await db.execute(select(User).order_by(User.display_name))
+    users = result.scalars().all()
+    return [
+        AdminUserResponse(
+            id=str(u.id), email=u.email, display_name=u.display_name,
+            role=u.role.value if hasattr(u.role, "value") else str(u.role),
+            is_active=u.is_active, last_login_at=u.last_login_at,
+            linked_person_id=str(u.linked_person_id) if u.linked_person_id else None,
+            created_at=u.created_at,
+        )
+        for u in users
+    ]
+
+
+@router.put("/users/{user_id}/role")
+async def update_user_role(
+    user_id: str,
+    role: str = Query(..., description="admin, editor, or viewer"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change a user's role."""
+    _require_admin(current_user)
+    if role not in ("admin", "editor", "viewer"):
+        raise HTTPException(status_code=400, detail="Invalid role.")
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    old_role = user.role.value if hasattr(user.role, "value") else str(user.role)
+    user.role = UserRole(role)
+    await db.flush()
+    await log_audit(db, user=current_user, action="update", entity_type="user",
+                    entity_id=user_id, entity_label=user.display_name,
+                    details={"field": "role", "from": old_role, "to": role})
+    return {"detail": f"Role updated to {role}.", "role": role}
+
+
+@router.put("/users/{user_id}/deactivate")
+async def toggle_user_active(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Toggle a user's active status."""
+    _require_admin(current_user)
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    user.is_active = not user.is_active
+    await db.flush()
+    await log_audit(db, user=current_user, action="update", entity_type="user",
+                    entity_id=user_id, entity_label=user.display_name,
+                    details={"field": "is_active", "value": user.is_active})
+    return {"detail": f"User {'activated' if user.is_active else 'deactivated'}.", "is_active": user.is_active}
