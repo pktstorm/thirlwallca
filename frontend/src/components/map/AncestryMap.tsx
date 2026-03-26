@@ -40,27 +40,26 @@ interface AncestryMapProps {
   ancestorPlaces?: MapPlace[]
 }
 
-// Heritage-styled map — muted tones that match the sage/parchment site theme
+// Heritage-styled map — OSM tiles with muted/desaturated styling via raster paint
 const mapStyle = {
   version: 8 as const,
   sources: {
-    "stamen-toner-lite": {
+    osm: {
       type: "raster" as const,
-      tiles: [
-        "https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}.png",
-      ],
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
       tileSize: 256,
-      attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://stamen.com">Stamen Design</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://openstreetmap.org">OpenStreetMap</a>',
+      attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
     },
   },
   layers: [
     {
-      id: "stamen-toner-lite",
+      id: "osm",
       type: "raster" as const,
-      source: "stamen-toner-lite",
+      source: "osm",
       paint: {
-        "raster-opacity": 0.85,
-        "raster-saturation": -0.3,
+        "raster-saturation": -0.4,
+        "raster-brightness-max": 0.92,
+        "raster-contrast": -0.1,
       },
     },
   ],

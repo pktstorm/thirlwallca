@@ -178,7 +178,7 @@ function RelatedPage() {
     <div className="min-h-screen bg-sage-50 dark:bg-bg-dark">
       <AppHeader />
 
-      <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
+      <div className="max-w-2xl mx-auto px-4 pt-20 pb-8 sm:pt-24 sm:pb-12">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-4">
