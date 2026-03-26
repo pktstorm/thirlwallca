@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react"
+import { useCallback } from "react"
 import { Marker, Popup } from "react-map-gl/maplibre"
 
 export interface LocationMarkerData {
@@ -18,6 +18,8 @@ export interface LocationMarkerData {
 
 interface LocationMarkerProps {
   location: LocationMarkerData
+  isSelected?: boolean
+  onSelect?: (locationId: string) => void
   onClick?: (personId: string, lat: number, lng: number) => void
 }
 
@@ -28,22 +30,21 @@ const colorClasses: Record<string, { dot: string; ring: string }> = {
   amber: { dot: "bg-amber-500", ring: "ring-amber-500/30" },
 }
 
-export function LocationMarker({ location, onClick }: LocationMarkerProps) {
-  const [showPopup, setShowPopup] = useState(false)
-
-  const handleMouseEnter = useCallback(() => setShowPopup(true), [])
-  const handleMouseLeave = useCallback(() => setShowPopup(false), [])
-
-  const handleClick = useCallback(() => {
+export function LocationMarker({ location, isSelected, onSelect, onClick }: LocationMarkerProps) {
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    // Toggle popup
+    if (onSelect) {
+      onSelect(isSelected ? "" : location.id)
+    }
+    // Also trigger person detail if available
     if (onClick && location.personIds && location.personIds.length > 0) {
       onClick(location.personIds[0]!, location.latitude, location.longitude)
     }
-  }, [onClick, location])
+  }, [onClick, onSelect, isSelected, location])
 
   const colorKey = location.color ?? "green"
   const colors = colorClasses[colorKey] ?? colorClasses.green!
-
-  // Use generation color if provided
   const useCustomColor = !!location.generationColor
 
   return (
@@ -54,15 +55,12 @@ export function LocationMarker({ location, onClick }: LocationMarkerProps) {
         anchor="center"
       >
         <div
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
           onClick={handleClick}
           className="relative cursor-pointer group"
         >
-          {/* Outer ring with pulse */}
           <div
             className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform group-hover:scale-125 ${
-              useCustomColor ? "ring-2" : `ring-2 ${colors.ring}`
+              useCustomColor ? "" : `ring-2 ${colors.ring}`
             }`}
             style={useCustomColor ? {
               outline: `2px solid ${location.generationColor}`,
@@ -70,7 +68,6 @@ export function LocationMarker({ location, onClick }: LocationMarkerProps) {
               boxShadow: `0 0 8px ${location.generationColor}40`,
             } : undefined}
           >
-            {/* Inner dot */}
             <div
               className={`w-4 h-4 rounded-full border-[1.5px] border-white shadow-sm ${
                 useCustomColor ? "" : colors.dot
@@ -81,14 +78,15 @@ export function LocationMarker({ location, onClick }: LocationMarkerProps) {
         </div>
       </Marker>
 
-      {showPopup && (
+      {isSelected && (
         <Popup
           longitude={location.longitude}
           latitude={location.latitude}
           anchor="bottom"
           offset={14}
-          closeButton={false}
+          closeButton
           closeOnClick={false}
+          onClose={() => onSelect?.("")}
           className="ancestry-map-popup"
         >
           <div className="px-3 py-2 min-w-[140px]">
@@ -120,9 +118,6 @@ export function LocationMarker({ location, onClick }: LocationMarkerProps) {
               <p className="text-xs text-sage-400 mt-0.5">
                 Generation {location.generation} ancestor
               </p>
-            )}
-            {onClick && location.personIds && location.personIds.length > 0 && (
-              <p className="text-[10px] text-primary-dark mt-1 font-medium">Click for details</p>
             )}
           </div>
         </Popup>

@@ -112,7 +112,10 @@ export function AncestryMap({
     x: number; y: number; migration: MigrationPathData
   } | null>(null)
 
-  // Rich popup state
+  // Location popup state (click-to-toggle)
+  const [selectedLocationId, setSelectedLocationId] = useState<string>("")
+
+  // Rich popup state (person detail)
   const [selectedMarker, setSelectedMarker] = useState<{ personId: string; lat: number; lng: number } | null>(null)
 
   const { data: personContext } = useQuery<PersonMapContext>({
@@ -341,7 +344,7 @@ export function AncestryMap({
       interactiveLayerIds={["migration-lines"]}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => { setHoveredMigration(null); setTooltipInfo(null) }}
-      onClick={() => { if (selectedMarker) setSelectedMarker(null) }}
+      onClick={() => { setSelectedLocationId(""); if (selectedMarker) setSelectedMarker(null) }}
     >
       <NavigationControl position="top-right" />
 
@@ -354,11 +357,11 @@ export function AncestryMap({
       )}
 
       {showMigrations && markerLocations.map((loc) => (
-        <LocationMarker key={loc.id} location={loc} onClick={handleMarkerClick} />
+        <LocationMarker key={loc.id} location={loc} isSelected={selectedLocationId === loc.id} onSelect={setSelectedLocationId} onClick={handleMarkerClick} />
       ))}
 
       {placeMarkers.map((loc) => (
-        <LocationMarker key={loc.id} location={loc} onClick={handleMarkerClick} />
+        <LocationMarker key={loc.id} location={loc} isSelected={selectedLocationId === loc.id} onSelect={setSelectedLocationId} onClick={handleMarkerClick} />
       ))}
 
       {/* Rich popup for clicked marker */}
