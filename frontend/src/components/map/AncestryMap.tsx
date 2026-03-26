@@ -1,15 +1,11 @@
 import { useState, useMemo, useCallback } from "react"
-import { Map as MapGL, NavigationControl, Popup } from "react-map-gl/maplibre"
+import { Map as MapGL, NavigationControl } from "react-map-gl/maplibre"
 import type { MapLayerMouseEvent } from "react-map-gl/maplibre"
 import "maplibre-gl/dist/maplibre-gl.css"
-import { useNavigate } from "@tanstack/react-router"
-import { useQuery } from "@tanstack/react-query"
-import { BookOpen, Clock, ExternalLink, User } from "lucide-react"
 import { MigrationLayer, type MigrationPathData } from "./MigrationLayer"
 import { LocationMarker, type LocationMarkerData } from "./LocationMarker"
-import type { MapPlace, PersonMapContext } from "../../types/location"
+import type { MapPlace } from "../../types/location"
 import { useMapStore } from "../../stores/mapStore"
-import { api } from "../../lib/api"
 
 interface ApiMigration {
   id: string
@@ -95,7 +91,6 @@ export function AncestryMap({
   personPlaces = [],
   ancestorPlaces = [],
 }: AncestryMapProps) {
-  const navigate = useNavigate()
   const storeYearRange = useMapStore((s) => s.yearRange)
   const selectedPersonIds = useMapStore((s) => s.selectedPersonIds)
   const showMigrations = useMapStore((s) => s.showMigrations)
@@ -115,18 +110,7 @@ export function AncestryMap({
   // Location popup state (click-to-toggle)
   const [selectedLocationId, setSelectedLocationId] = useState<string>("")
 
-  // Rich popup state (person detail)
-  const [selectedMarker, setSelectedMarker] = useState<{ personId: string; lat: number; lng: number } | null>(null)
-
-  const { data: personContext } = useQuery<PersonMapContext>({
-    queryKey: ["person-map-context", selectedMarker?.personId],
-    queryFn: async () => {
-      const res = await api.get(`/map/person-context/${selectedMarker!.personId}`)
-      return res.data
-    },
-    enabled: !!selectedMarker?.personId,
-    staleTime: 60_000,
-  })
+  // Person context popup removed — using single click-to-toggle popup on markers
 
   // Determine which places to use based on mode
   const activePlaces = useMemo(() => {
@@ -332,10 +316,6 @@ export function AncestryMap({
 
   void hoveredMigration
 
-  const handleMarkerClick = useCallback((personId: string, lat: number, lng: number) => {
-    setSelectedMarker({ personId, lat, lng })
-  }, [])
-
   return (
     <MapGL
       initialViewState={{ longitude: -30, latitude: 30, zoom: 2 }}
@@ -344,11 +324,10 @@ export function AncestryMap({
       interactiveLayerIds={["migration-lines"]}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => { setHoveredMigration(null); setTooltipInfo(null) }}
-      onClick={() => { setSelectedLocationId(""); if (selectedMarker) setSelectedMarker(null) }}
+      onClick={() => { setSelectedLocationId("") }}
     >
       <NavigationControl position="top-right" />
 
-      {/* Migration/traceline paths — generation-colored in ancestor mode */}
       {showMigrations && (
         <MigrationLayer
           migrations={allTracelines}
@@ -357,100 +336,12 @@ export function AncestryMap({
       )}
 
       {showMigrations && markerLocations.map((loc) => (
-        <LocationMarker key={loc.id} location={loc} isSelected={selectedLocationId === loc.id} onSelect={setSelectedLocationId} onClick={handleMarkerClick} />
+        <LocationMarker key={loc.id} location={loc} isSelected={selectedLocationId === loc.id} onSelect={setSelectedLocationId} />
       ))}
 
       {placeMarkers.map((loc) => (
-        <LocationMarker key={loc.id} location={loc} isSelected={selectedLocationId === loc.id} onSelect={setSelectedLocationId} onClick={handleMarkerClick} />
+        <LocationMarker key={loc.id} location={loc} isSelected={selectedLocationId === loc.id} onSelect={setSelectedLocationId} />
       ))}
-
-      {/* Rich popup for clicked marker */}
-      {selectedMarker && personContext && (
-        <Popup
-          longitude={selectedMarker.lng}
-          latitude={selectedMarker.lat}
-          anchor="bottom"
-          offset={16}
-          closeButton
-          closeOnClick={false}
-          onClose={() => setSelectedMarker(null)}
-          className="ancestry-map-popup"
-          maxWidth="320px"
-        >
-          <div className="p-3 min-w-[260px]">
-            {/* Person header */}
-            <div className="flex items-center gap-3 mb-3">
-              {personContext.profile_photo_url ? (
-                <img
-                  src={personContext.profile_photo_url}
-                  alt={personContext.person_name}
-                  className="w-12 h-12 rounded-full object-cover border-2 border-sage-200"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-sage-100 flex items-center justify-center">
-                  <User className="w-5 h-5 text-sage-400" />
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="font-bold text-earth-900 text-sm leading-tight truncate">
-                  {personContext.person_name}
-                </p>
-                <p className="text-xs text-sage-400">
-                  {personContext.birth_year ? `b. ${personContext.birth_year}` : ""}
-                  {personContext.death_year ? ` \u2013 d. ${personContext.death_year}` : ""}
-                  {personContext.is_living ? " \u2013 Living" : ""}
-                </p>
-              </div>
-            </div>
-
-            {/* Stories */}
-            {personContext.stories.length > 0 && (
-              <div className="mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-sage-400 mb-1 flex items-center gap-1">
-                  <BookOpen className="w-3 h-3" />
-                  Stories
-                </p>
-                {personContext.stories.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => navigate({ to: "/person/$personId/story", params: { personId: personContext.person_id } } as never)}
-                    className="w-full text-left text-xs text-primary-dark hover:text-primary transition-colors py-0.5 truncate"
-                  >
-                    {s.title}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Timeline events */}
-            {personContext.timeline_events.length > 0 && (
-              <div className="mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-sage-400 mb-1 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  Timeline
-                </p>
-                {personContext.timeline_events.slice(0, 3).map((e) => (
-                  <p key={e.id} className="text-xs text-earth-800 py-0.5 truncate">
-                    {e.event_date ? `${e.event_date.split("-")[0]} \u2013 ` : ""}{e.title}
-                  </p>
-                ))}
-                {personContext.timeline_events.length > 3 && (
-                  <p className="text-[10px] text-sage-300">+{personContext.timeline_events.length - 3} more</p>
-                )}
-              </div>
-            )}
-
-            {/* View profile link */}
-            <button
-              onClick={() => navigate({ to: "/person/$personId", params: { personId: personContext.person_id } } as never)}
-              className="flex items-center gap-1.5 text-xs font-medium text-primary-dark hover:text-primary transition-colors mt-1"
-            >
-              <ExternalLink className="w-3 h-3" />
-              View Full Profile
-            </button>
-          </div>
-        </Popup>
-      )}
 
       {/* Hover tooltip for migration paths */}
       {tooltipInfo && (

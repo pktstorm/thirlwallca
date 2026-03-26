@@ -30,18 +30,13 @@ const colorClasses: Record<string, { dot: string; ring: string }> = {
   amber: { dot: "bg-amber-500", ring: "ring-amber-500/30" },
 }
 
-export function LocationMarker({ location, isSelected, onSelect, onClick }: LocationMarkerProps) {
+export function LocationMarker({ location, isSelected, onSelect }: LocationMarkerProps) {
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    // Toggle popup
     if (onSelect) {
       onSelect(isSelected ? "" : location.id)
     }
-    // Also trigger person detail if available
-    if (onClick && location.personIds && location.personIds.length > 0) {
-      onClick(location.personIds[0]!, location.latitude, location.longitude)
-    }
-  }, [onClick, onSelect, isSelected, location])
+  }, [onSelect, isSelected, location])
 
   const colorKey = location.color ?? "green"
   const colors = colorClasses[colorKey] ?? colorClasses.green!
