@@ -229,7 +229,10 @@ async def get_dashboard(
 
     audit_result = await db.execute(
         select(AuditLog)
-        .where(AuditLog.created_at >= thirty_days_ago)
+        .where(
+            AuditLog.created_at >= thirty_days_ago,
+            AuditLog.entity_type != "user",
+        )
         .order_by(AuditLog.created_at.desc())
         .limit(20)
     )
