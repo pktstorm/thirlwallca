@@ -272,7 +272,7 @@ function OnboardPage() {
             {/* Password */}
             <div>
               <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-dark-text-muted">
-                Choose a password
+                Create your password
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -282,7 +282,7 @@ function OnboardPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder=""
                   className="w-full rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface py-2.5 pl-10 pr-10 text-sm text-gray-900 dark:text-dark-text placeholder:text-gray-400 focus:border-primary-dark focus:outline-none focus:ring-2 focus:ring-primary-dark/20"
                 />
                 <button
@@ -309,7 +309,7 @@ function OnboardPage() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder=""
                   className={`w-full rounded-lg border bg-white dark:bg-dark-surface py-2.5 pl-10 pr-10 text-sm text-gray-900 dark:text-dark-text placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-dark/20 ${
                     confirmPassword && !passwordsMatch
                       ? "border-red-300 focus:border-red-400"
