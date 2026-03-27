@@ -217,6 +217,11 @@
   }
 }
 
+/* Mobile bottom nav safe area for iOS */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* Generation band alternating backgrounds (applied via JS) */
 .generation-band-even {
   background-color: rgba(157, 187, 168, 0.04);

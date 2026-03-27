@@ -5,6 +5,7 @@ import { fetchAuthSession } from "aws-amplify/auth"
 import { api } from "../lib/api"
 import { useAuthStore } from "../stores/authStore"
 import { NavSidebar } from "../components/layout/NavSidebar"
+import { MobileBottomNav } from "../components/layout/MobileBottomNav"
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async () => {
@@ -81,6 +82,7 @@ function AuthenticatedLayout() {
         </div>
       )}
       <Outlet />
+      <MobileBottomNav />
     </>
   )
 }

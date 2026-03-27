@@ -171,8 +171,8 @@ function TreePage() {
       {/* Header */}
       <AppHeader />
 
-      {/* Controls row */}
-      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2">
+      {/* Controls row — responsive: wraps on mobile */}
+      <div className="absolute top-16 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-30 pointer-events-auto flex flex-wrap items-center gap-1.5 sm:gap-2 justify-center">
         <Breadcrumbs
           items={[
             { label: breadcrumbLabel, active: true },
@@ -232,15 +232,15 @@ function TreePage() {
           <div className="absolute bottom-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:bottom-6 z-30 pointer-events-auto hidden sm:block">
             <TimeSlider minYear={minYear} maxYear={maxYear} />
           </div>
-          {/* Mobile: generation filter dropdown */}
-          <div className="absolute bottom-4 left-14 z-30 pointer-events-auto sm:hidden">
+          {/* Mobile: generation filter dropdown — above bottom nav */}
+          <div className="absolute bottom-16 left-14 z-30 pointer-events-auto sm:hidden">
             <GenerationFilter minYear={minYear} maxYear={maxYear} />
           </div>
         </>
       )}
 
-      {/* Add Member button */}
-      <div className="absolute bottom-20 left-4 sm:bottom-6 sm:left-6 z-30 pointer-events-auto">
+      {/* Add Member button — above bottom nav on mobile */}
+      <div className="absolute bottom-28 left-4 sm:bottom-6 sm:left-6 z-30 pointer-events-auto">
         <AddMemberButton
           existingPersons={existingPersons}
           onCreated={handleMemberCreated}

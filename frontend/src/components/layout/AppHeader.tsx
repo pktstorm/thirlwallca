@@ -39,7 +39,7 @@ export function AppHeader({ hideSearch = false }: { hideSearch?: boolean } = {})
   return (
     <header className="absolute top-0 left-0 w-full z-40 pointer-events-none px-4 py-3 flex justify-between items-start">
       {/* Left: Logo + menu */}
-      <div className="pointer-events-auto flex items-center gap-3 bg-white/80 dark:bg-dark-card/80 backdrop-blur-md p-2 pr-4 rounded-xl shadow-sm border border-sage-200 dark:border-dark-border">
+      <div className="pointer-events-auto flex items-center gap-2 sm:gap-3 bg-white/80 dark:bg-dark-card/80 backdrop-blur-md p-2 pr-3 sm:pr-4 rounded-xl shadow-sm border border-sage-200 dark:border-dark-border">
         <button
           onClick={toggleSidebar}
           className="p-2 hover:bg-sage-100 dark:hover:bg-dark-surface rounded-lg text-earth-800 dark:text-dark-text"
@@ -47,8 +47,8 @@ export function AppHeader({ hideSearch = false }: { hideSearch?: boolean } = {})
           <Menu className="h-5 w-5" />
         </button>
         <div className="flex items-center gap-2">
-          <img src="/logo-small.png" alt="Thirlwall Family Crest" className="w-8 h-8 object-contain" />
-          <span className="font-bold text-base sm:text-lg text-earth-900 dark:text-dark-text tracking-tight">
+          <img src="/logo-small.png" alt="Thirlwall Family Crest" className="w-7 h-7 sm:w-8 sm:h-8 object-contain" />
+          <span className="hidden sm:inline font-bold text-lg text-earth-900 dark:text-dark-text tracking-tight">
             {APP_NAME}
           </span>
         </div>

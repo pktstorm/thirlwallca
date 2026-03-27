@@ -241,8 +241,8 @@ function MapPage() {
     <div className="h-screen w-screen bg-sage-50 dark:bg-bg-dark relative overflow-hidden">
       <AppHeader />
 
-      {/* Top controls row */}
-      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2">
+      {/* Top controls row — responsive */}
+      <div className="absolute top-16 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-30 pointer-events-auto flex flex-wrap items-center gap-1.5 sm:gap-2 justify-center">
         <Breadcrumbs items={[{ label: breadcrumbLabel, active: true }]} />
         <MapQuickActions isLoadingTrail={ancestorTrailLoading} />
       </div>
@@ -301,9 +301,9 @@ function MapPage() {
         <PersonFilterPanel persons={allPersons} />
       )}
 
-      {/* Layer controls */}
+      {/* Layer controls — above bottom nav on mobile */}
       {!isLoading && hasData && (
-        <div className="absolute bottom-6 left-6 z-30 pointer-events-auto">
+        <div className="absolute bottom-20 sm:bottom-6 left-4 sm:left-6 z-30 pointer-events-auto">
           <MapLayerControls
             migrationCount={showMigrations ? migrationCount : 0}
             birthCount={placeCounts.birth}
@@ -313,9 +313,9 @@ function MapPage() {
         </div>
       )}
 
-      {/* Timeline slider */}
+      {/* Timeline slider — above bottom nav on mobile, hidden on very small screens */}
       {!isLoading && hasData && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+        <div className="absolute bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto hidden sm:block">
           <MapTimelineSlider minYear={yearBounds[0]} maxYear={yearBounds[1]} />
         </div>
       )}
