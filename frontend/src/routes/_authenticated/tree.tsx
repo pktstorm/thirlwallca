@@ -171,13 +171,11 @@ function TreePage() {
       {/* Header */}
       <AppHeader />
 
-      {/* Controls row — responsive: wraps on mobile */}
-      <div className="absolute top-16 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-30 pointer-events-auto flex flex-wrap items-center gap-1.5 sm:gap-2 justify-center">
-        <Breadcrumbs
-          items={[
-            { label: breadcrumbLabel, active: true },
-          ]}
-        />
+      {/* Controls row — simplified on mobile */}
+      <div className="absolute top-14 sm:top-16 left-2 right-2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-30 pointer-events-auto flex items-center gap-1.5 sm:gap-2 justify-center">
+        <div className="hidden sm:block">
+          <Breadcrumbs items={[{ label: breadcrumbLabel, active: true }]} />
+        </div>
         <TreeViewToggle nodeCount={nodeCount} disabled={!linkedPersonId} />
         <TreeSearch treeNodes={mergedData?.nodes ?? []} />
       </div>

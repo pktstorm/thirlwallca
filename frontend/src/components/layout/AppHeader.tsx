@@ -37,7 +37,7 @@ export function AppHeader({ hideSearch = false }: { hideSearch?: boolean } = {})
     : "?"
 
   return (
-    <header className="absolute top-0 left-0 w-full z-40 pointer-events-none px-4 py-3 flex justify-between items-start">
+    <header className="absolute top-0 left-0 w-full z-40 pointer-events-none px-3 sm:px-4 py-2 sm:py-3 flex justify-between items-start">
       {/* Left: Logo + menu */}
       <div className="pointer-events-auto flex items-center gap-2 sm:gap-3 bg-white/80 dark:bg-dark-card/80 backdrop-blur-md p-2 pr-3 sm:pr-4 rounded-xl shadow-sm border border-sage-200 dark:border-dark-border">
         <button
@@ -71,10 +71,10 @@ export function AppHeader({ hideSearch = false }: { hideSearch?: boolean } = {})
       )}
 
       {/* Right: Theme toggle + User avatar */}
-      <div className="pointer-events-auto relative flex items-center gap-2">
+      <div className="pointer-events-auto relative flex items-center gap-1.5 sm:gap-2">
         <button
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="w-10 h-10 rounded-full bg-white/80 dark:bg-dark-surface backdrop-blur-md flex items-center justify-center shadow-lg hover:bg-sage-100 dark:hover:bg-sage-800 transition-colors text-earth-800 dark:text-dark-text"
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/80 dark:bg-dark-surface backdrop-blur-md flex items-center justify-center shadow-lg hover:bg-sage-100 dark:hover:bg-sage-800 transition-colors text-earth-800 dark:text-dark-text"
           aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
           {theme === "dark" ? (
@@ -85,7 +85,7 @@ export function AppHeader({ hideSearch = false }: { hideSearch?: boolean } = {})
         </button>
         <button
           onClick={() => setShowUserMenu(!showUserMenu)}
-          className="w-10 h-10 rounded-full bg-primary text-earth-900 flex items-center justify-center shadow-lg hover:bg-primary-dark transition-colors font-bold text-sm"
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary text-earth-900 flex items-center justify-center shadow-lg hover:bg-primary-dark transition-colors font-bold text-xs sm:text-sm"
         >
           {initials}
         </button>

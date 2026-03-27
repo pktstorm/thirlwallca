@@ -57,7 +57,7 @@ function LoginPage() {
         linkedPersonId: meData.linked_person_id,
         avatarUrl: meData.avatar_url,
       })
-      navigate({ to: "/tree" })
+      navigate({ to: "/home" })
     } catch (err: any) {
       const message =
         err.message || "Invalid email or password. Please try again."
