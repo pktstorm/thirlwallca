@@ -63,7 +63,8 @@ resource "aws_iam_role_policy" "app" {
         Action = [
           "cognito-idp:AdminGetUser",
           "cognito-idp:AdminCreateUser",
-          "cognito-idp:AdminUpdateUserAttributes"
+          "cognito-idp:AdminUpdateUserAttributes",
+          "cognito-idp:AdminSetUserPassword"
         ]
         Resource = ["*"]
       }
