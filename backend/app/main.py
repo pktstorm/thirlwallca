@@ -38,6 +38,9 @@ def create_app() -> FastAPI:
 
     setup_cors(app)
 
+    from app.middleware.error_capture import ErrorCaptureMiddleware
+    app.add_middleware(ErrorCaptureMiddleware)
+
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
     app.include_router(signup.router, prefix="/api/v1/auth", tags=["signup"])

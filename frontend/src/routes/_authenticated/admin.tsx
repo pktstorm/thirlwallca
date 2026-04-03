@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Shield, Users, ScrollText, Check, X, Loader2, ChevronDown,
-  UserCheck, Filter, KeyRound, Plus, Trash2, Copy,
+  UserCheck, Filter, KeyRound, Plus, Trash2, Copy, AlertTriangle, CheckCircle,
 } from "lucide-react"
 import { api } from "../../lib/api"
 import { AppHeader } from "../../components/layout/AppHeader"
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
 })
 
-type Tab = "users" | "codes" | "audit"
+type Tab = "users" | "codes" | "errors" | "audit"
 
 // --- Types ---
 
@@ -598,6 +598,142 @@ function CodesTab() {
   )
 }
 
+// --- Errors Tab ---
+
+interface ErrorLogEntry {
+  id: string; method: string; path: string; status_code: number
+  error_type: string; error_message: string; traceback: string | null
+  user_agent: string | null; ip_address: string | null
+  request_body: string | null; resolved: boolean; created_at: string
+}
+
+function ErrorsTab() {
+  const queryClient = useQueryClient()
+  const [showResolved, setShowResolved] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const { data: errors, isLoading } = useQuery<ErrorLogEntry[]>({
+    queryKey: ["admin-errors", showResolved],
+    queryFn: async () => {
+      const params: Record<string, string> = { limit: "100" }
+      if (!showResolved) params.resolved = "false"
+      const res = await api.get("/admin/error-logs", { params })
+      return res.data
+    },
+  })
+
+  const { data: errorStats } = useQuery<{ total: number; unresolved: number; last_24h: number }>({
+    queryKey: ["admin-error-stats"],
+    queryFn: async () => { const res = await api.get("/admin/error-stats"); return res.data },
+  })
+
+  const resolveMutation = useMutation({
+    mutationFn: async (errorId: string) => { await api.put(`/admin/error-logs/${errorId}/resolve`) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-errors"] }); queryClient.invalidateQueries({ queryKey: ["admin-error-stats"] }) },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (errorId: string) => { await api.delete(`/admin/error-logs/${errorId}`) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-errors"] }); queryClient.invalidateQueries({ queryKey: ["admin-error-stats"] }) },
+  })
+
+  return (
+    <div className="space-y-6">
+      {/* Stats */}
+      {errorStats && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-sage-200 dark:border-dark-border p-4 text-center">
+            <p className="text-2xl font-bold text-earth-900 dark:text-dark-text">{errorStats.unresolved}</p>
+            <p className="text-xs text-sage-400 mt-0.5">Unresolved</p>
+          </div>
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-sage-200 dark:border-dark-border p-4 text-center">
+            <p className="text-2xl font-bold text-earth-900 dark:text-dark-text">{errorStats.last_24h}</p>
+            <p className="text-xs text-sage-400 mt-0.5">Last 24h</p>
+          </div>
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-sage-200 dark:border-dark-border p-4 text-center">
+            <p className="text-2xl font-bold text-earth-900 dark:text-dark-text">{errorStats.total}</p>
+            <p className="text-xs text-sage-400 mt-0.5">Total</p>
+          </div>
+        </div>
+      )}
+
+      {/* Filter */}
+      <div className="flex items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-earth-900 dark:text-dark-text">
+          <input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)}
+            className="rounded border-sage-300 text-primary-dark focus:ring-primary-dark/20" />
+          Show resolved
+        </label>
+      </div>
+
+      {isLoading && <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>}
+
+      {errors?.length === 0 && !isLoading && (
+        <div className="text-center py-8 bg-white/80 dark:bg-dark-card/80 rounded-xl border border-sage-200 dark:border-dark-border">
+          <CheckCircle className="h-8 w-8 text-primary mx-auto mb-2" />
+          <p className="text-sage-400 text-sm">No {showResolved ? "" : "unresolved "}errors.</p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {errors?.map((err) => (
+          <div key={err.id} className={cn("bg-white dark:bg-dark-card rounded-xl border overflow-hidden", err.resolved ? "border-sage-200 dark:border-dark-border opacity-60" : "border-red-200 dark:border-red-800/30")}>
+            <button
+              onClick={() => setExpandedId(expandedId === err.id ? null : err.id)}
+              className="w-full flex items-start gap-3 p-4 text-left hover:bg-sage-50 dark:hover:bg-dark-surface transition-colors"
+            >
+              <AlertTriangle className={cn("h-4 w-4 flex-shrink-0 mt-0.5", err.resolved ? "text-sage-300" : "text-red-500")} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-mono font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded">{err.status_code}</span>
+                  <span className="text-xs font-mono text-sage-400">{err.method}</span>
+                  <span className="text-xs font-mono text-earth-900 dark:text-dark-text truncate">{err.path}</span>
+                </div>
+                <p className="text-sm text-earth-900 dark:text-dark-text mt-1 font-medium">{err.error_type}: {err.error_message.slice(0, 120)}{err.error_message.length > 120 ? "..." : ""}</p>
+                <p className="text-[10px] text-sage-300 mt-1">{timeAgo(err.created_at)} {err.ip_address ? `\u2022 ${err.ip_address}` : ""}</p>
+              </div>
+              <ChevronDown className={cn("h-3.5 w-3.5 text-sage-300 transition-transform flex-shrink-0 mt-1", expandedId === err.id && "rotate-180")} />
+            </button>
+
+            {expandedId === err.id && (
+              <div className="px-4 pb-4 border-t border-sage-100 dark:border-dark-border space-y-3">
+                {err.traceback && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-sage-400 mb-1">Traceback</p>
+                    <pre className="text-[10px] font-mono text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/10 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap max-h-64 overflow-y-auto">{err.traceback}</pre>
+                  </div>
+                )}
+                {err.request_body && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-sage-400 mb-1">Request Body</p>
+                    <pre className="text-[10px] font-mono text-earth-800 dark:text-dark-text bg-sage-50 dark:bg-dark-surface rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">{err.request_body}</pre>
+                  </div>
+                )}
+                {err.user_agent && (
+                  <p className="text-[10px] text-sage-300"><span className="font-bold text-sage-400">User Agent:</span> {err.user_agent}</p>
+                )}
+                <div className="flex items-center gap-2 pt-2">
+                  <button onClick={() => resolveMutation.mutate(err.id)}
+                    className={cn("flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
+                      err.resolved
+                        ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                        : "bg-primary/10 text-primary-dark hover:bg-primary/20")}>
+                    {err.resolved ? "Unresolve" : <><CheckCircle className="h-3 w-3" /> Mark Resolved</>}
+                  </button>
+                  <button onClick={() => deleteMutation.mutate(err.id)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                    <Trash2 className="h-3 w-3" /> Delete
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // --- Main Admin Page ---
 
 function AdminPage() {
@@ -660,11 +796,21 @@ function AdminPage() {
           >
             <ScrollText className="h-3.5 w-3.5" /> Audit Log
           </button>
+          <button
+            onClick={() => setActiveTab("errors")}
+            className={cn("flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors",
+              activeTab === "errors"
+                ? "border-red-500 text-red-600 dark:text-red-400"
+                : "border-transparent text-sage-400 hover:text-earth-900")}
+          >
+            <AlertTriangle className="h-3.5 w-3.5" /> Errors
+          </button>
         </div>
 
         {/* Tab content */}
         {activeTab === "users" && <UsersTab />}
         {activeTab === "codes" && <CodesTab />}
+        {activeTab === "errors" && <ErrorsTab />}
         {activeTab === "audit" && <AuditTab />}
       </div>
     </div>

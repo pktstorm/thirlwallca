@@ -81,15 +81,25 @@ async def request_access(
                     logger.error("Failed to create Cognito user: %s", exc)
                     raise HTTPException(status_code=500, detail="Failed to create account.") from exc
 
-        # Create signup request as already approved
-        req = SignupRequest(
-            email=body.email,
-            first_name=body.first_name,
-            last_name=body.last_name,
-            status=SignupStatus.APPROVED,
-            reviewed_at=datetime.now(timezone.utc),
+        # Find or create signup request as already approved
+        existing_req = await db.execute(
+            select(SignupRequest).where(SignupRequest.email == body.email)
         )
-        db.add(req)
+        req = existing_req.scalar_one_or_none()
+        if req:
+            req.status = SignupStatus.APPROVED
+            req.first_name = body.first_name
+            req.last_name = body.last_name
+            req.reviewed_at = datetime.now(timezone.utc)
+        else:
+            req = SignupRequest(
+                email=body.email,
+                first_name=body.first_name,
+                last_name=body.last_name,
+                status=SignupStatus.APPROVED,
+                reviewed_at=datetime.now(timezone.utc),
+            )
+            db.add(req)
         await db.flush()
 
         # Generate onboard token
