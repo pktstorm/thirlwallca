@@ -451,3 +451,107 @@ async def delete_signup_code(
     if not code:
         raise HTTPException(status_code=404, detail="Code not found.")
     await db.delete(code)
+
+
+# ---------------------------------------------------------------------------
+# Delete User + Reset Password
+# ---------------------------------------------------------------------------
+
+
+@router.delete("/users/{user_id}", status_code=204)
+async def delete_user(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Permanently delete a user: remove from Cognito and database."""
+    _require_admin(current_user)
+
+    if str(current_user.id) == user_id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account.")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    user_label = user.display_name
+
+    # Delete from Cognito
+    if settings.cognito_user_pool_id and user.cognito_sub:
+        client = boto3.client("cognito-idp", region_name=settings.cognito_region)
+        try:
+            client.admin_delete_user(
+                UserPoolId=settings.cognito_user_pool_id,
+                Username=user.email,
+            )
+            logger.info("Deleted Cognito user for %s", user.email)
+        except ClientError as exc:
+            error_code = exc.response["Error"]["Code"]
+            if error_code == "UserNotFoundException":
+                logger.info("Cognito user not found for %s, proceeding with DB delete", user.email)
+            else:
+                logger.error("Failed to delete Cognito user: %s", exc)
+                raise HTTPException(status_code=500, detail="Failed to delete user from auth provider.") from exc
+
+    # Delete from database
+    await db.delete(user)
+
+    await log_audit(db, user=current_user, action="delete", entity_type="user",
+                    entity_id=user_id, entity_label=user_label)
+
+    await db.commit()
+
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_user_password(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset a user's password: generate a new onboard token and send them an email."""
+    _require_admin(current_user)
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    # Create a signup request record if one doesn't exist (needed for onboard token FK)
+    from app.domain.models import SignupRequest as SR
+    sr_result = await db.execute(select(SR).where(SR.email == user.email))
+    signup_req = sr_result.scalar_one_or_none()
+
+    if not signup_req:
+        signup_req = SR(
+            email=user.email,
+            first_name=user.display_name.split(" ")[0] if user.display_name else "User",
+            last_name=user.display_name.split(" ")[-1] if user.display_name and " " in user.display_name else "",
+            status=SignupStatus.APPROVED,
+            reviewed_at=datetime.now(timezone.utc),
+        )
+        db.add(signup_req)
+        await db.flush()
+
+    # Generate onboard token
+    token = secrets.token_urlsafe(48)
+    now = datetime.now(timezone.utc)
+
+    onboard = OnboardToken(
+        signup_request_id=signup_req.id,
+        email=user.email,
+        token=token,
+        expires_at=now + timedelta(days=7),
+    )
+    db.add(onboard)
+    await db.flush()
+
+    # Send reset email
+    first_name = user.display_name.split(" ")[0] if user.display_name else "there"
+    send_onboard_email(user.email, first_name, token)
+
+    await log_audit(db, user=current_user, action="update", entity_type="user",
+                    entity_id=user_id, entity_label=user.display_name,
+                    details={"action": "password_reset"})
+
+    return {"detail": f"Password reset email sent to {user.email}."}

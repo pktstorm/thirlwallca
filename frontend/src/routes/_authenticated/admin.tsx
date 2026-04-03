@@ -146,6 +146,21 @@ function UsersTab() {
     onSettled: () => { queryClient.invalidateQueries({ queryKey: ["admin-users"] }) },
   })
 
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => { await api.delete(`/admin/users/${userId}`) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-users"] }) },
+  })
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await api.post(`/admin/users/${userId}/reset-password`)
+      return res.data
+    },
+  })
+
+  const [confirmDeleteUserId, setConfirmDeleteUserId] = useState<string | null>(null)
+  const [resetSuccessUserId, setResetSuccessUserId] = useState<string | null>(null)
+
   const pendingCount = signupRequests?.filter((r) => r.status === "pending").length ?? 0
 
   return (
@@ -266,12 +281,42 @@ function UsersTab() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => toggleActiveMutation.mutate(u.id)}
-                        className="text-xs text-sage-400 hover:text-red-500 transition-colors"
-                      >
-                        {u.is_active ? "Deactivate" : "Activate"}
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            resetPasswordMutation.mutate(u.id, {
+                              onSuccess: () => { setResetSuccessUserId(u.id); setTimeout(() => setResetSuccessUserId(null), 3000) },
+                            })
+                          }}
+                          disabled={resetPasswordMutation.isPending}
+                          className="text-xs text-sage-400 hover:text-primary-dark transition-colors"
+                          title="Send password reset email"
+                        >
+                          {resetSuccessUserId === u.id ? "Sent!" : "Reset PW"}
+                        </button>
+                        <button
+                          onClick={() => toggleActiveMutation.mutate(u.id)}
+                          className="text-xs text-sage-400 hover:text-amber-600 transition-colors"
+                        >
+                          {u.is_active ? "Deactivate" : "Activate"}
+                        </button>
+                        {confirmDeleteUserId === u.id ? (
+                          <span className="flex items-center gap-1">
+                            <button onClick={() => deleteUserMutation.mutate(u.id, { onSuccess: () => setConfirmDeleteUserId(null) })}
+                              className="text-xs text-red-600 font-medium hover:text-red-700">Confirm</button>
+                            <button onClick={() => setConfirmDeleteUserId(null)}
+                              className="text-xs text-sage-400">Cancel</button>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteUserId(u.id)}
+                            className="text-xs text-sage-300 hover:text-red-500 transition-colors"
+                            title="Delete user permanently"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
