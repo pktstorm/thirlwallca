@@ -162,7 +162,7 @@ function CalendarPage() {
                   <Icon className={cn("h-3.5 w-3.5 flex-shrink-0", color)} />
                   <p className="text-xs text-earth-900 dark:text-dark-text flex-1">
                     {e.person_name}
-                    {e.year_of_event && <span className="text-sage-400"> \u2022 {e.type === "birthday" ? "Born" : e.type === "wedding_anniversary" ? "Married" : "Died"} {e.year_of_event}</span>}
+                    {e.year_of_event && <span className="text-sage-400"> &bull; {e.type === "birthday" ? "Born" : e.type === "wedding_anniversary" ? "Married" : "Died"} {e.year_of_event}</span>}
                   </p>
                 </div>
               )
