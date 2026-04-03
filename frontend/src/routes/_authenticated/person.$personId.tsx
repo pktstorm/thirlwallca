@@ -40,6 +40,7 @@ import { FamilyMiniTree } from "../../components/person/FamilyMiniTree"
 import { PhotoLightbox } from "../../components/person/PhotoLightbox"
 import { TimelineEventEditor } from "../../components/person/TimelineEventEditor"
 import { ShareMemory } from "../../components/person/ShareMemory"
+import { generateBirthContext } from "../../lib/historicalContext"
 
 export const Route = createFileRoute("/_authenticated/person/$personId")({
   component: PersonProfilePage,
@@ -863,6 +864,11 @@ function PersonProfilePage() {
                     {formatDate(person.birthDate, person.birthDateApprox)}
                   </p>
                   {person.birthNotes && <p className="text-xs text-sage-400 dark:text-dark-text-muted mt-1 italic">{person.birthNotes}</p>}
+                  {person.birthDate && (() => {
+                    const year = new Date(person.birthDate + "T00:00:00").getFullYear()
+                    const ctx = generateBirthContext(year, person.birthPlaceText)
+                    return ctx ? <p className="text-xs text-sage-300 dark:text-dark-text-muted/60 mt-1.5 italic">{ctx}</p> : null
+                  })()}
                 </div>
               </div>
               {person.isLiving ? (

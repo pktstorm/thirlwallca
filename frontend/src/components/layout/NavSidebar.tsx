@@ -8,6 +8,9 @@ import {
   UserCircle,
   Settings,
   Home,
+  MessageCircle,
+  FileSearch,
+  Calendar,
   GitBranch,
   BarChart3,
   UtensilsCrossed,
@@ -34,6 +37,9 @@ const mainNavItems = [
 
 const discoverNavItems = [
   { label: "How Related?", icon: GitBranch, to: "/related" },
+  { label: "Family Calendar", icon: Calendar, to: "/calendar" },
+  { label: "Ask the Family", icon: MessageCircle, to: "/questions" },
+  { label: "Research Notes", icon: FileSearch, to: "/research" },
   { label: "Statistics", icon: BarChart3, to: "/stats" },
   { label: "Recipes & Traditions", icon: UtensilsCrossed, to: "/traditions" },
   { label: "Media Gallery", icon: Images, to: "/media" },

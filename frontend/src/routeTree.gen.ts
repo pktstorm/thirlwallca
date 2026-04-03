@@ -21,10 +21,13 @@ import { Route as AuthenticatedTraditionsRouteImport } from './routes/_authentic
 import { Route as AuthenticatedStatsRouteImport } from './routes/_authenticated/stats'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSearchRouteImport } from './routes/_authenticated/search'
+import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
 import { Route as AuthenticatedRelatedRouteImport } from './routes/_authenticated/related'
+import { Route as AuthenticatedQuestionsRouteImport } from './routes/_authenticated/questions'
 import { Route as AuthenticatedMediaRouteImport } from './routes/_authenticated/media'
 import { Route as AuthenticatedMapRouteImport } from './routes/_authenticated/map'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedTreePersonIdRouteImport } from './routes/_authenticated/tree.$personId'
 import { Route as AuthenticatedPersonPersonIdRouteImport } from './routes/_authenticated/person.$personId'
@@ -91,9 +94,19 @@ const AuthenticatedSearchRoute = AuthenticatedSearchRouteImport.update({
   path: '/search',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedResearchRoute = AuthenticatedResearchRouteImport.update({
+  id: '/research',
+  path: '/research',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedRelatedRoute = AuthenticatedRelatedRouteImport.update({
   id: '/related',
   path: '/related',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedQuestionsRoute = AuthenticatedQuestionsRouteImport.update({
+  id: '/questions',
+  path: '/questions',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedMediaRoute = AuthenticatedMediaRouteImport.update({
@@ -109,6 +122,11 @@ const AuthenticatedMapRoute = AuthenticatedMapRouteImport.update({
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -155,10 +173,13 @@ export interface FileRoutesByFullPath {
   '/onboard': typeof OnboardRoute
   '/request-access': typeof RequestAccessRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/calendar': typeof AuthenticatedCalendarRoute
   '/home': typeof AuthenticatedHomeRoute
   '/map': typeof AuthenticatedMapRoute
   '/media': typeof AuthenticatedMediaRoute
+  '/questions': typeof AuthenticatedQuestionsRoute
   '/related': typeof AuthenticatedRelatedRoute
+  '/research': typeof AuthenticatedResearchRoute
   '/search': typeof AuthenticatedSearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/stats': typeof AuthenticatedStatsRoute
@@ -178,10 +199,13 @@ export interface FileRoutesByTo {
   '/onboard': typeof OnboardRoute
   '/request-access': typeof RequestAccessRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/calendar': typeof AuthenticatedCalendarRoute
   '/home': typeof AuthenticatedHomeRoute
   '/map': typeof AuthenticatedMapRoute
   '/media': typeof AuthenticatedMediaRoute
+  '/questions': typeof AuthenticatedQuestionsRoute
   '/related': typeof AuthenticatedRelatedRoute
+  '/research': typeof AuthenticatedResearchRoute
   '/search': typeof AuthenticatedSearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/stats': typeof AuthenticatedStatsRoute
@@ -203,10 +227,13 @@ export interface FileRoutesById {
   '/onboard': typeof OnboardRoute
   '/request-access': typeof RequestAccessRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/map': typeof AuthenticatedMapRoute
   '/_authenticated/media': typeof AuthenticatedMediaRoute
+  '/_authenticated/questions': typeof AuthenticatedQuestionsRoute
   '/_authenticated/related': typeof AuthenticatedRelatedRoute
+  '/_authenticated/research': typeof AuthenticatedResearchRoute
   '/_authenticated/search': typeof AuthenticatedSearchRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/stats': typeof AuthenticatedStatsRoute
@@ -228,10 +255,13 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/request-access'
     | '/admin'
+    | '/calendar'
     | '/home'
     | '/map'
     | '/media'
+    | '/questions'
     | '/related'
+    | '/research'
     | '/search'
     | '/settings'
     | '/stats'
@@ -251,10 +281,13 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/request-access'
     | '/admin'
+    | '/calendar'
     | '/home'
     | '/map'
     | '/media'
+    | '/questions'
     | '/related'
+    | '/research'
     | '/search'
     | '/settings'
     | '/stats'
@@ -275,10 +308,13 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/request-access'
     | '/_authenticated/admin'
+    | '/_authenticated/calendar'
     | '/_authenticated/home'
     | '/_authenticated/map'
     | '/_authenticated/media'
+    | '/_authenticated/questions'
     | '/_authenticated/related'
+    | '/_authenticated/research'
     | '/_authenticated/search'
     | '/_authenticated/settings'
     | '/_authenticated/stats'
@@ -387,11 +423,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSearchRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/research': {
+      id: '/_authenticated/research'
+      path: '/research'
+      fullPath: '/research'
+      preLoaderRoute: typeof AuthenticatedResearchRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/related': {
       id: '/_authenticated/related'
       path: '/related'
       fullPath: '/related'
       preLoaderRoute: typeof AuthenticatedRelatedRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/questions': {
+      id: '/_authenticated/questions'
+      path: '/questions'
+      fullPath: '/questions'
+      preLoaderRoute: typeof AuthenticatedQuestionsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/media': {
@@ -413,6 +463,13 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/calendar': {
+      id: '/_authenticated/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof AuthenticatedCalendarRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin': {
@@ -484,10 +541,13 @@ const AuthenticatedTreeRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedMapRoute: typeof AuthenticatedMapRoute
   AuthenticatedMediaRoute: typeof AuthenticatedMediaRoute
+  AuthenticatedQuestionsRoute: typeof AuthenticatedQuestionsRoute
   AuthenticatedRelatedRoute: typeof AuthenticatedRelatedRoute
+  AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
   AuthenticatedSearchRoute: typeof AuthenticatedSearchRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedStatsRoute: typeof AuthenticatedStatsRoute
@@ -500,10 +560,13 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedMapRoute: AuthenticatedMapRoute,
   AuthenticatedMediaRoute: AuthenticatedMediaRoute,
+  AuthenticatedQuestionsRoute: AuthenticatedQuestionsRoute,
   AuthenticatedRelatedRoute: AuthenticatedRelatedRoute,
+  AuthenticatedResearchRoute: AuthenticatedResearchRoute,
   AuthenticatedSearchRoute: AuthenticatedSearchRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedStatsRoute: AuthenticatedStatsRoute,

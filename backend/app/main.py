@@ -25,6 +25,12 @@ from app.http.handlers import (
     traditions,
     dashboard,
     family_stats,
+    historical_records,
+    questions,
+    research_notes,
+    challenges,
+    photo_comparisons,
+    calendar_events,
 )
 
 def create_app() -> FastAPI:
@@ -65,6 +71,12 @@ def create_app() -> FastAPI:
     app.include_router(traditions.router, prefix="/api/v1/traditions", tags=["traditions"])
     app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
     app.include_router(family_stats.router, prefix="/api/v1/stats", tags=["family-stats"])
+    app.include_router(historical_records.router, prefix="/api/v1/historical-records", tags=["historical-records"])
+    app.include_router(questions.router, prefix="/api/v1/questions", tags=["questions"])
+    app.include_router(research_notes.router, prefix="/api/v1/research", tags=["research"])
+    app.include_router(challenges.router, prefix="/api/v1/challenges", tags=["challenges"])
+    app.include_router(photo_comparisons.router, prefix="/api/v1/photo-comparisons", tags=["photo-comparisons"])
+    app.include_router(calendar_events.router, prefix="/api/v1/calendar", tags=["calendar"])
 
     return app
 

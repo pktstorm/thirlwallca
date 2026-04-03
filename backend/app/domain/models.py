@@ -58,6 +58,7 @@ class Person(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     gedcom_xref: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
     birth_notes: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    ethnicity_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # e.g., {"Scottish": 45, "English": 30, "Irish": 25}
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -111,6 +112,7 @@ class Migration(Base):
     year_approx: Mapped[bool] = mapped_column(Boolean, default=False)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    migration_story: Mapped[str | None] = mapped_column(Text, nullable=True)  # rich narrative of why they moved
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -370,8 +372,107 @@ class AuditLog(Base):
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     user_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     action: Mapped[str] = mapped_column(String(32), nullable=False)  # create, update, delete
-    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)  # person, relationship, story, etc.
+    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
     entity_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    entity_label: Mapped[str | None] = mapped_column(String(255), nullable=True)  # human-readable label
-    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # before/after or extra context
+    entity_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class HistoricalRecord(Base):
+    """Links a person to an external historical record (census, immigration, military, etc.)."""
+    __tablename__ = "historical_records"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    person_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="CASCADE"), nullable=False)
+    source_name: Mapped[str] = mapped_column(String(255), nullable=False)  # e.g., "1881 England Census"
+    record_type: Mapped[str] = mapped_column(String(64), nullable=False, default="other")  # census, immigration, military, church, land, vital
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    transcription: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class FamilyQuestion(Base):
+    """A question posted to the family for collaborative knowledge sharing."""
+    __tablename__ = "family_questions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    person_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="SET NULL"), nullable=True)
+    author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    is_resolved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class FamilyAnswer(Base):
+    """An answer to a family question."""
+    __tablename__ = "family_answers"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    question_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("family_questions.id", ondelete="CASCADE"), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class ResearchNote(Base):
+    """A shared research note for collaborative genealogy work."""
+    __tablename__ = "research_notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="open")  # open, lead, brick_wall, resolved
+    person_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="SET NULL"), nullable=True)
+    author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PhotoComparison(Base):
+    """A then-and-now photo pair for the same location."""
+    __tablename__ = "photo_comparisons"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    location_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    old_media_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("media.id"), nullable=True)
+    old_s3_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    old_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    new_media_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("media.id"), nullable=True)
+    new_s3_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    new_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class FamilyChallenge(Base):
+    """A predefined challenge/quest for family members to complete."""
+    __tablename__ = "family_challenges"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    challenge_type: Mapped[str] = mapped_column(String(32), nullable=False, default="research")  # research, photo, story, connection
+    target_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    icon: Mapped[str | None] = mapped_column(String(32), nullable=True)  # lucide icon name
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class ChallengeProgress(Base):
+    """Tracks a user's progress on a challenge."""
+    __tablename__ = "challenge_progress"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    challenge_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("family_challenges.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    current_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
