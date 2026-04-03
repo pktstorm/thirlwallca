@@ -6,7 +6,7 @@ Handles access requests (unauthenticated) and magic-link onboarding
 
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import boto3
 from botocore.exceptions import ClientError
@@ -36,8 +36,6 @@ async def request_access(
     db: AsyncSession = Depends(get_db),
 ):
     """Submit a signup request. If a valid signup_code is provided, bypass approval."""
-    from datetime import timedelta
-
     # Check if email already has a Cognito/User account
     result = await db.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none():
@@ -134,7 +132,27 @@ async def request_access(
         if existing.status == SignupStatus.PENDING:
             return {"detail": "Your request is already pending review."}
         if existing.status == SignupStatus.APPROVED:
-            return {"detail": "Your request has already been approved. Check your email for the setup link."}
+            # Check if they already have a User account (fully onboarded)
+            user_check = await db.execute(select(User).where(User.email == body.email))
+            if user_check.scalar_one_or_none():
+                return {"detail": "An account with this email already exists. Please sign in."}
+
+            # Approved but not yet onboarded — generate a fresh onboard token
+            token = secrets.token_urlsafe(48)
+            onboard = OnboardToken(
+                signup_request_id=existing.id,
+                email=body.email,
+                token=token,
+                expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+            )
+            db.add(onboard)
+            await db.flush()
+
+            return {
+                "detail": "Your request was already approved! Set up your password to get started.",
+                "auto_approved": True,
+                "onboard_token": token,
+            }
         if existing.status == SignupStatus.REJECTED:
             existing.status = SignupStatus.PENDING
             existing.first_name = body.first_name
