@@ -46,11 +46,31 @@ class FamilyStats(BaseModel):
     countries_lived_in: int
 
 
+class BranchMember(BaseModel):
+    id: str
+    name: str
+    profile_photo_url: str | None = None
+    relationship: str  # "parent", "spouse", "child"
+
+
+class BranchSummary(BaseModel):
+    person_name: str
+    members: list[BranchMember]
+
+
+class AdminQuickStats(BaseModel):
+    pending_signups: int
+    total_users: int
+    recent_audit_count: int
+
+
 class DashboardResponse(BaseModel):
     on_this_day: list[OnThisDayItem]
     recent_activity: list[RecentActivityItem]
     family_stats: FamilyStats
     fun_facts: list[str]
+    my_branch: BranchSummary | None = None
+    admin_stats: AdminQuickStats | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +177,8 @@ async def _generate_fun_facts(db: AsyncSession) -> list[str]:
 
 @router.get("", response_model=DashboardResponse)
 async def get_dashboard(
+    person_id: str | None = None,
+    user_role: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     today = datetime.now(timezone.utc)
@@ -312,9 +334,78 @@ async def get_dashboard(
     # --- Fun Facts ---
     fun_facts = await _generate_fun_facts(db)
 
+    # --- My Branch (if person_id provided) ---
+    my_branch = None
+    if person_id:
+        import uuid as _uuid
+        try:
+            pid = _uuid.UUID(person_id)
+            person_result = await db.execute(select(Person).where(Person.id == pid))
+            person = person_result.scalar_one_or_none()
+            if person:
+                members: list[dict] = []
+                # Get relationships
+                rels = await db.execute(
+                    select(Relationship).where(
+                        (Relationship.person_id == pid) | (Relationship.related_person_id == pid)
+                    )
+                )
+                for rel in rels.scalars().all():
+                    other_id = rel.related_person_id if rel.person_id == pid else rel.person_id
+                    other_result = await db.execute(select(Person).where(Person.id == other_id))
+                    other = other_result.scalar_one_or_none()
+                    if not other:
+                        continue
+
+                    if rel.relationship.value == "spouse":
+                        role = "spouse"
+                    elif rel.relationship.value == "parent_child":
+                        if rel.person_id == pid:
+                            role = "parent"  # current person is child, other is parent
+                        else:
+                            role = "child"   # current person is parent, other is child
+                    else:
+                        continue
+
+                    members.append({
+                        "id": str(other.id),
+                        "name": f"{other.first_name} {other.last_name}",
+                        "profile_photo_url": other.profile_photo_url,
+                        "relationship": role,
+                    })
+
+                my_branch = {
+                    "person_name": f"{person.first_name} {person.last_name}",
+                    "members": members,
+                }
+        except (ValueError, AttributeError):
+            pass
+
+    # --- Admin Stats (if admin role) ---
+    admin_stats = None
+    if user_role == "admin":
+        from app.domain.models import SignupRequest, AuditLog
+        from app.domain.enums import SignupStatus
+
+        pending = await db.execute(
+            select(func.count()).select_from(SignupRequest).where(SignupRequest.status == SignupStatus.PENDING)
+        )
+        from app.domain.models import User as UserModel
+        total_users = await db.execute(select(func.count()).select_from(UserModel))
+        recent_audits = await db.execute(
+            select(func.count()).select_from(AuditLog).where(AuditLog.created_at >= thirty_days_ago)
+        )
+        admin_stats = {
+            "pending_signups": pending.scalar() or 0,
+            "total_users": total_users.scalar() or 0,
+            "recent_audit_count": recent_audits.scalar() or 0,
+        }
+
     return {
         "on_this_day": on_this_day,
         "recent_activity": recent_activity,
         "family_stats": family_stats,
         "fun_facts": fun_facts,
+        "my_branch": my_branch,
+        "admin_stats": admin_stats,
     }
