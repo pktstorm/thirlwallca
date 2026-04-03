@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { X, ChevronLeft, ChevronRight, FileText, ZoomIn, ZoomOut, RotateCw } from "lucide-react"
+import { useState, useCallback } from "react"
+import { X, ChevronLeft, ChevronRight, FileText, ZoomIn, ZoomOut, RotateCw, ScanLine, Loader2 } from "lucide-react"
 
 interface MediaItem {
   id: string
@@ -22,9 +22,34 @@ export function DocumentViewer({ item, onClose, onPrev, onNext, hasPrev, hasNext
   const [rotation, setRotation] = useState(0)
   const [transcription, setTranscription] = useState("")
   const [showTranscription, setShowTranscription] = useState(false)
+  const [ocrRunning, setOcrRunning] = useState(false)
+  const [ocrProgress, setOcrProgress] = useState(0)
 
-  const isImage = item.media_type === "photo" || item.s3_key.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-  const isPdf = item.s3_key.match(/\.pdf$/i)
+  const isImage = item.media_type === "photo" || !!item.s3_key.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+  const isPdf = !!item.s3_key.match(/\.pdf$/i)
+
+  const runOcr = useCallback(async () => {
+    if (!isImage) return
+    setOcrRunning(true)
+    setOcrProgress(0)
+    setShowTranscription(true)
+
+    try {
+      const { createWorker } = await import("tesseract.js")
+      const worker = await createWorker("eng", undefined, {
+        logger: (m: { progress: number }) => {
+          if (m.progress) setOcrProgress(Math.round(m.progress * 100))
+        },
+      })
+      const { data: { text } } = await worker.recognize(`/media/${item.s3_key}`)
+      setTranscription(text)
+      await worker.terminate()
+    } catch (err) {
+      setTranscription("[OCR failed. Please type the transcription manually.]")
+    } finally {
+      setOcrRunning(false)
+    }
+  }, [item.s3_key, isImage])
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 flex" onClick={onClose}>
@@ -62,6 +87,17 @@ export function DocumentViewer({ item, onClose, onPrev, onNext, hasPrev, hasNext
               <RotateCw className="h-4 w-4" />
             </button>
             <div className="w-px h-4 bg-white/20 mx-1" />
+            {isImage && (
+              <button
+                onClick={runOcr}
+                disabled={ocrRunning}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 text-white hover:bg-white/20 transition-colors disabled:opacity-50"
+                title="Extract text from image using OCR"
+              >
+                {ocrRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanLine className="h-3.5 w-3.5" />}
+                {ocrRunning ? `OCR ${ocrProgress}%` : "OCR"}
+              </button>
+            )}
             <button
               onClick={() => setShowTranscription(!showTranscription)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${

@@ -41,6 +41,7 @@ import { PhotoLightbox } from "../../components/person/PhotoLightbox"
 import { TimelineEventEditor } from "../../components/person/TimelineEventEditor"
 import { ShareMemory } from "../../components/person/ShareMemory"
 import { generateBirthContext } from "../../lib/historicalContext"
+import { LifePathMap } from "../../components/map/LifePathMap"
 
 export const Route = createFileRoute("/_authenticated/person/$personId")({
   component: PersonProfilePage,
@@ -322,6 +323,7 @@ function PersonProfilePage() {
   const [photoProgress, setPhotoProgress] = useState(0)
   const [activeTab, setActiveTab] = useState<ProfileTab>("overview")
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const [showLifePath, setShowLifePath] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
   const setLinkedPersonId = useAuthStore((s) => s.setLinkedPersonId)
@@ -770,6 +772,13 @@ function PersonProfilePage() {
                 <MapIcon className="h-4 w-4" />
                 Show on Map
               </Link>
+              <button
+                onClick={() => setShowLifePath(true)}
+                className="inline-flex items-center justify-center gap-2 bg-white/10 backdrop-blur-sm text-white font-bold text-xs uppercase tracking-wider px-5 py-2.5 rounded-lg border border-white/20 hover:bg-white/20 transition-colors"
+              >
+                <MapIcon className="h-4 w-4" />
+                Life Path
+              </button>
               {canEdit && (
                 <button
                   onClick={() => setEditOpen(true)}
@@ -1187,6 +1196,15 @@ function PersonProfilePage() {
             personName={buildFullName(person)}
           />
         </>
+      )}
+
+      {/* Life Path Map */}
+      {showLifePath && (
+        <LifePathMap
+          personId={personId}
+          personName={fullName}
+          onClose={() => setShowLifePath(false)}
+        />
       )}
     </div>
   )

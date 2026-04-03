@@ -31,6 +31,7 @@ from app.http.handlers import (
     challenges,
     photo_comparisons,
     calendar_events,
+    suggestions,
 )
 
 def create_app() -> FastAPI:
@@ -77,6 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(challenges.router, prefix="/api/v1/challenges", tags=["challenges"])
     app.include_router(photo_comparisons.router, prefix="/api/v1/photo-comparisons", tags=["photo-comparisons"])
     app.include_router(calendar_events.router, prefix="/api/v1/calendar", tags=["calendar"])
+    app.include_router(suggestions.router, prefix="/api/v1/persons", tags=["suggestions"])
 
     return app
 

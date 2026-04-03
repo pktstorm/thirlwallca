@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { X, TreePine, Loader2, CheckCircle, Plus, Trash2 } from "lucide-react"
 import { api } from "../../lib/api"
+import { PersonSuggestions } from "./PersonSuggestions"
 
 interface ExistingPerson {
   id: string
@@ -497,6 +498,23 @@ export function AddMemberModal({
                 )}
               </div>
             </div>
+
+            {/* Smart suggestions */}
+            <PersonSuggestions
+              firstName={form.firstName}
+              lastName={form.lastName}
+              birthYear={form.birthDate ? parseInt(form.birthDate.split("-")[0]!) : null}
+              onSelectExisting={(personId) => {
+                // Add this person to the first relationship slot instead of creating new
+                if (relationships.length > 0) {
+                  const updated = [...relationships]
+                  updated[0] = { ...updated[0]!, connectTo: personId }
+                  setRelationships(updated)
+                }
+                // Close modal and notify
+                onClose()
+              }}
+            />
 
             {/* Gender */}
             <div>
