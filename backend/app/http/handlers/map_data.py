@@ -184,21 +184,23 @@ async def get_ancestor_trail(
                 generation_map[parent_id] = current_gen + 1
                 queue.append((parent_id, current_gen + 1))
 
-    # Also include spouses of ancestors (for context)
+    # Include spouses of ancestors for context (but NOT when max_generations=0,
+    # which is used for "my journey" / life path where we only want one person)
     spouse_ids = set()
-    result = await db.execute(
-        select(Relationship.person_id, Relationship.related_person_id).where(
-            (Relationship.person_id.in_(list(visited)) | Relationship.related_person_id.in_(list(visited))),
-            Relationship.relationship == "SPOUSE",
+    if max_generations > 0:
+        result = await db.execute(
+            select(Relationship.person_id, Relationship.related_person_id).where(
+                (Relationship.person_id.in_(list(visited)) | Relationship.related_person_id.in_(list(visited))),
+                Relationship.relationship == "SPOUSE",
+            )
         )
-    )
-    for pid, rpid in result.all():
-        if pid in visited and rpid not in visited:
-            spouse_ids.add(rpid)
-            generation_map[rpid] = generation_map.get(pid, 0)
-        elif rpid in visited and pid not in visited:
-            spouse_ids.add(pid)
-            generation_map[pid] = generation_map.get(rpid, 0)
+        for pid, rpid in result.all():
+            if pid in visited and rpid not in visited:
+                spouse_ids.add(rpid)
+                generation_map[rpid] = generation_map.get(pid, 0)
+            elif rpid in visited and pid not in visited:
+                spouse_ids.add(pid)
+                generation_map[pid] = generation_map.get(rpid, 0)
 
     all_ids = list(visited | spouse_ids)
     places = await _get_places_for_person_ids(db, all_ids, generation_map)
