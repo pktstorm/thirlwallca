@@ -33,6 +33,7 @@ from app.http.handlers import (
     calendar_events,
     suggestions,
     family_stories,
+    events,
 )
 
 def create_app() -> FastAPI:
@@ -81,6 +82,7 @@ def create_app() -> FastAPI:
     app.include_router(calendar_events.router, prefix="/api/v1/calendar", tags=["calendar"])
     app.include_router(suggestions.router, prefix="/api/v1/persons", tags=["suggestions"])
     app.include_router(family_stories.router, prefix="/api/v1/family-stories", tags=["family-stories"])
+    app.include_router(events.router, prefix="/api/v1/events", tags=["events"])
 
     return app
 

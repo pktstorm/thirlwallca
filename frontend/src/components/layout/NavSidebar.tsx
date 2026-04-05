@@ -12,6 +12,7 @@ import {
   FileSearch,
   Calendar,
   BookOpen,
+  CalendarDays,
   GitBranch,
   BarChart3,
   UtensilsCrossed,
@@ -38,6 +39,7 @@ const mainNavItems = [
 
 const discoverNavItems = [
   { label: "How Related?", icon: GitBranch, to: "/related" },
+  { label: "Events", icon: CalendarDays, to: "/events" },
   { label: "Family Calendar", icon: Calendar, to: "/calendar" },
   { label: "Ask the Family", icon: MessageCircle, to: "/questions" },
   { label: "Research Notes", icon: FileSearch, to: "/research" },
