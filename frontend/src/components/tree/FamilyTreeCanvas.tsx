@@ -363,7 +363,7 @@ function FamilyTreeCanvasInner({
     setPendingCenterPersonId(null)
   }, [layoutReady, pendingCenterPersonId, nodes, personToUnit, setCenter, setFocusedPerson, detailPanelOpen, toggleDetailPanel, setPendingCenterPersonId])
 
-  // Fit view once layout is ready
+  // Fit view once layout is ready — center on focusPersonId if provided
   useEffect(() => {
     if (!layoutReady || nodes.length === 0) return
 
@@ -375,6 +375,8 @@ function FamilyTreeCanvasInner({
           if (focusNode) {
             const w = focusNode.style?.width as number ?? PERSON_WIDTH
             const h = focusNode.style?.height as number ?? PERSON_NODE_HEIGHT
+            // Prevent the visibility effect from overriding this center
+            skipNextFitView.current = true
             setCenter(
               focusNode.position.x + w / 2,
               focusNode.position.y + h / 2,
