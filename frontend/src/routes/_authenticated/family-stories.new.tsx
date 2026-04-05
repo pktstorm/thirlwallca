@@ -154,17 +154,6 @@ function NewFamilyStoryPage() {
             </div>
           </div>
 
-          {/* Cover image URL */}
-          <div>
-            <label className="block text-sm font-medium text-sage-600 dark:text-dark-text-muted mb-1">Cover Image URL</label>
-            <input type="url" value={coverImageUrl} onChange={(e) => setCoverImageUrl(e.target.value)}
-              placeholder="https://..."
-              className="w-full rounded-xl border border-sage-200 dark:border-dark-border bg-white dark:bg-dark-card px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-dark/20" />
-            {coverImageUrl && (
-              <img src={coverImageUrl} alt="Preview" className="mt-2 rounded-lg max-h-40 object-cover border border-sage-200" />
-            )}
-          </div>
-
           {/* External URL */}
           <div>
             <label className="block text-sm font-medium text-sage-600 dark:text-dark-text-muted mb-1">External Link (Wikipedia, etc.)</label>
@@ -217,18 +206,46 @@ function NewFamilyStoryPage() {
             )}
           </div>
 
-          {/* Additional Images */}
+          {/* Images */}
           <div>
-            <label className="block text-sm font-medium text-sage-600 dark:text-dark-text-muted mb-1">Additional Images</label>
+            <label className="block text-sm font-medium text-sage-600 dark:text-dark-text-muted mb-1">Images</label>
+            {coverImageUrl && (
+              <div className="mb-3 p-2 bg-primary/5 border border-primary/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary-dark bg-primary/10 px-1.5 py-0.5 rounded">Cover Image</span>
+                  <button onClick={() => setCoverImageUrl("")} className="text-[10px] text-sage-400 hover:text-red-500">Remove as cover</button>
+                </div>
+                <img src={coverImageUrl} alt="Cover" className="rounded-lg max-h-32 object-cover" />
+              </div>
+            )}
             {images.map((img, i) => (
-              <div key={i} className="flex gap-2 mb-2">
-                <input type="url" value={img.image_url} onChange={(e) => { const u = [...images]; u[i] = { ...u[i]!, image_url: e.target.value }; setImages(u) }}
-                  placeholder="Image URL" className="flex-1 rounded-lg border border-sage-200 dark:border-dark-border bg-white dark:bg-dark-card px-3 py-2 text-sm focus:outline-none" />
-                <input type="text" value={img.caption} onChange={(e) => { const u = [...images]; u[i] = { ...u[i]!, caption: e.target.value }; setImages(u) }}
-                  placeholder="Caption" className="flex-1 rounded-lg border border-sage-200 dark:border-dark-border bg-white dark:bg-dark-card px-3 py-2 text-sm focus:outline-none" />
-                <button onClick={() => setImages(images.filter((_, j) => j !== i))} className="p-2 text-sage-400 hover:text-red-500">
-                  <X className="h-4 w-4" />
-                </button>
+              <div key={i} className="flex gap-2 mb-2 items-start">
+                <div className="flex-1 space-y-1">
+                  <input type="url" value={img.image_url} onChange={(e) => { const u = [...images]; u[i] = { ...u[i]!, image_url: e.target.value }; setImages(u) }}
+                    placeholder="Image URL" className="w-full rounded-lg border border-sage-200 dark:border-dark-border bg-white dark:bg-dark-card px-3 py-2 text-sm focus:outline-none" />
+                  <input type="text" value={img.caption} onChange={(e) => { const u = [...images]; u[i] = { ...u[i]!, caption: e.target.value }; setImages(u) }}
+                    placeholder="Caption" className="w-full rounded-lg border border-sage-200 dark:border-dark-border bg-white dark:bg-dark-card px-3 py-2 text-sm focus:outline-none" />
+                  {img.image_url.trim() && (
+                    <img src={img.image_url} alt="" className="rounded-lg max-h-24 object-cover mt-1" />
+                  )}
+                </div>
+                <div className="flex flex-col gap-1 flex-shrink-0 pt-1">
+                  {img.image_url.trim() && coverImageUrl !== img.image_url && (
+                    <button onClick={() => setCoverImageUrl(img.image_url)}
+                      className="text-[9px] font-medium text-primary-dark bg-primary/10 px-2 py-1 rounded hover:bg-primary/20 transition-colors whitespace-nowrap">
+                      Set as cover
+                    </button>
+                  )}
+                  {coverImageUrl === img.image_url && (
+                    <span className="text-[9px] font-bold text-primary-dark bg-primary/10 px-2 py-1 rounded">Cover</span>
+                  )}
+                  <button onClick={() => {
+                    if (coverImageUrl === img.image_url) setCoverImageUrl("")
+                    setImages(images.filter((_, j) => j !== i))
+                  }} className="p-1 text-sage-400 hover:text-red-500">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             ))}
             <button onClick={() => setImages([...images, { image_url: "", caption: "" }])}
