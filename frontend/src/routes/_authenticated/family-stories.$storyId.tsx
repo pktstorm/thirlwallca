@@ -66,7 +66,7 @@ function FamilyStoryDetailPage() {
           <div className="h-48 sm:h-64 bg-gradient-to-br from-primary-darker to-bg-dark" />
         )}
 
-        <AppHeader />
+        <AppHeader hideSearch />
 
         <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
           <div className="max-w-4xl mx-auto">
@@ -160,9 +160,9 @@ function FamilyStoryDetailPage() {
                 <ArrowLeft className="h-4 w-4" /> Back to all stories
               </Link>
               {canEdit && (
-                <Link to="/family-stories/new"
+                <Link to={`/family-stories/new?edit=${story.id}` as any}
                   className="flex items-center gap-2 text-sm text-primary-dark hover:text-primary transition-colors">
-                  <Edit className="h-4 w-4" /> Write a new story
+                  <Edit className="h-4 w-4" /> Edit this story
                 </Link>
               )}
             </div>

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Save, Plus, X, Search, Loader2 } from "lucide-react"
@@ -16,6 +16,10 @@ interface PersonResult {
 function NewFamilyStoryPage() {
   const navigate = useNavigate()
 
+  // Check if we're editing an existing story
+  const editId = new URLSearchParams(window.location.search).get("edit")
+  const isEditing = !!editId
+
   const [title, setTitle] = useState("")
   const [subtitle, setSubtitle] = useState("")
   const [content, setContent] = useState("")
@@ -26,6 +30,35 @@ function NewFamilyStoryPage() {
   const [personIds, setPersonIds] = useState<string[]>([])
   const [personSearch, setPersonSearch] = useState("")
   const [images, setImages] = useState<{ image_url: string; caption: string }[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  // Load existing story data if editing
+  const { data: existingStory } = useQuery({
+    queryKey: ["family-story-edit", editId],
+    queryFn: async () => {
+      const res = await api.get(`/family-stories/${editId}`)
+      return res.data
+    },
+    enabled: isEditing && !loaded,
+  })
+
+  useEffect(() => {
+    if (existingStory && !loaded) {
+      setTitle(existingStory.title ?? "")
+      setSubtitle(existingStory.subtitle ?? "")
+      setContent(existingStory.content ?? "")
+      setCategory(existingStory.category ?? "history")
+      setCoverImageUrl(existingStory.cover_image_url ?? "")
+      setExternalUrl(existingStory.external_url ?? "")
+      setPublished(existingStory.published ?? false)
+      setPersonIds(existingStory.person_ids ?? [])
+      setImages((existingStory.images ?? []).map((i: any) => ({
+        image_url: i.image_url || (i.s3_key ? `/media/${i.s3_key}` : ""),
+        caption: i.caption ?? "",
+      })))
+      setLoaded(true)
+    }
+  }, [existingStory, loaded])
 
   // Search persons to link
   const { data: searchResults } = useQuery<PersonResult[]>({
@@ -39,9 +72,9 @@ function NewFamilyStoryPage() {
 
   const filteredResults = searchResults?.filter((p) => !personIds.includes(p.id)) ?? []
 
-  const createMutation = useMutation({
+  const saveMutation = useMutation({
     mutationFn: async () => {
-      const res = await api.post("/family-stories", {
+      const payload = {
         title, subtitle: subtitle || null, content, category,
         cover_image_url: coverImageUrl || null,
         external_url: externalUrl || null,
@@ -49,7 +82,12 @@ function NewFamilyStoryPage() {
         images: images.filter((i) => i.image_url.trim()).map((i, idx) => ({
           image_url: i.image_url, caption: i.caption || null, sort_order: idx,
         })),
-      })
+      }
+      if (isEditing) {
+        const res = await api.put(`/family-stories/${editId}`, payload)
+        return res.data
+      }
+      const res = await api.post("/family-stories", payload)
       return res.data
     },
     onSuccess: (data) => {
@@ -73,7 +111,7 @@ function NewFamilyStoryPage() {
     <div className="min-h-screen bg-sage-50 dark:bg-bg-dark">
       <AppHeader />
       <div className="max-w-3xl mx-auto px-4 pt-20 pb-20 sm:pt-24 sm:pb-12">
-        <h1 className="text-2xl font-bold text-earth-900 dark:text-dark-text mb-6">New Family Story</h1>
+        <h1 className="text-2xl font-bold text-earth-900 dark:text-dark-text mb-6">{isEditing ? "Edit Story" : "New Family Story"}</h1>
 
         <div className="space-y-5">
           {/* Title */}
@@ -203,11 +241,11 @@ function NewFamilyStoryPage() {
           <div className="flex justify-end gap-3 pt-4 border-t border-sage-200 dark:border-dark-border">
             <button onClick={() => navigate({ to: "/family-stories" })}
               className="px-4 py-2.5 text-sm text-sage-400 hover:text-earth-900 transition-colors">Cancel</button>
-            <button onClick={() => createMutation.mutate()}
-              disabled={!title.trim() || !content.trim() || createMutation.isPending}
+            <button onClick={() => saveMutation.mutate()}
+              disabled={!title.trim() || !content.trim() || saveMutation.isPending}
               className="flex items-center gap-2 px-5 py-2.5 bg-primary-dark text-white font-medium text-sm rounded-xl hover:bg-primary hover:text-earth-900 transition-colors disabled:opacity-50">
-              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {published ? "Publish Story" : "Save Draft"}
+              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {isEditing ? "Save Changes" : published ? "Publish Story" : "Save Draft"}
             </button>
           </div>
         </div>
