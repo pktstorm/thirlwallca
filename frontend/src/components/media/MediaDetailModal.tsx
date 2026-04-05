@@ -106,8 +106,12 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
     onSuccess: () => {
       setRotation(0)
       setImageVersion((v) => v + 1)
+      // Force refetch all media queries so gallery thumbnails update
       queryClient.invalidateQueries({ queryKey: ["media"] })
       queryClient.invalidateQueries({ queryKey: ["person-media"] })
+      queryClient.invalidateQueries({ queryKey: ["media", "all-counts"] })
+      // Close and reopen to force image reload in the gallery
+      onClose()
     },
   })
 

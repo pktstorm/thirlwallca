@@ -17,4 +17,5 @@ export interface Media {
   locationId: string | null
   uploadedBy: string
   createdAt: string
+  updatedAt: string
 }

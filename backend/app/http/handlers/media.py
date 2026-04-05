@@ -211,9 +211,11 @@ async def rotate_media(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to upload rotated image: {exc}") from exc
 
-    # Update dimensions if tracked
+    # Update dimensions and force updated_at change for cache busting
+    from datetime import datetime, timezone
     if media.width and media.height and degrees in (90, 270):
         media.width, media.height = media.height, media.width
-        await db.flush()
+    media.updated_at = datetime.now(timezone.utc)
+    await db.flush()
 
     return {"detail": f"Image rotated {degrees}° clockwise", "width": media.width, "height": media.height}

@@ -42,13 +42,14 @@ interface MediaApiResponse {
 }
 
 function toMedia(raw: MediaApiResponse): Media {
+  const cacheBust = raw.updated_at ? `?v=${new Date(raw.updated_at).getTime()}` : ""
   return {
     id: raw.id,
     title: raw.title,
     description: raw.description,
     mediaType: raw.media_type,
-    url: `/media/${raw.s3_key}`,
-    thumbnailUrl: raw.thumbnail_s3_key ? `/media/${raw.thumbnail_s3_key}` : null,
+    url: `/media/${raw.s3_key}${cacheBust}`,
+    thumbnailUrl: raw.thumbnail_s3_key ? `/media/${raw.thumbnail_s3_key}${cacheBust}` : null,
     fileSizeBytes: raw.file_size_bytes,
     mimeType: raw.mime_type,
     width: raw.width,
@@ -59,6 +60,7 @@ function toMedia(raw: MediaApiResponse): Media {
     locationId: raw.location_id,
     uploadedBy: raw.uploaded_by,
     createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
   }
 }
 
