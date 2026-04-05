@@ -7,7 +7,7 @@ import { AppHeader } from "../../components/layout/AppHeader"
 import { useAuthStore } from "../../stores/authStore"
 import { cn } from "../../lib/utils"
 
-export const Route = createFileRoute("/_authenticated/family-stories")({
+export const Route = createFileRoute("/_authenticated/family-stories/")({
   component: FamilyStoriesPage,
 })
 
