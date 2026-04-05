@@ -92,6 +92,24 @@ async def delete_media(
     await db.delete(media)
 
 
+@router.get("/{media_id}/tags")
+async def list_media_tags(
+    media_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """List all persons tagged in a media item."""
+    from app.domain.models import Person
+    result = await db.execute(
+        select(MediaPerson.person_id, Person.first_name, Person.last_name)
+        .join(Person, MediaPerson.person_id == Person.id)
+        .where(MediaPerson.media_id == media_id)
+    )
+    return [
+        {"person_id": str(pid), "person_name": f"{fn} {ln}"}
+        for pid, fn, ln in result.all()
+    ]
+
+
 @router.post("/{media_id}/tag", status_code=status.HTTP_201_CREATED)
 async def tag_person_in_media(
     media_id: uuid.UUID,

@@ -33,11 +33,11 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
   const [personSearch, setPersonSearch] = useState("")
   const [saved, setSaved] = useState(false)
 
-  // Fetch tags for this media
+  // Fetch persons tagged in this media
   const { data: tags } = useQuery<MediaTag[]>({
     queryKey: ["media-tags", media.id],
     queryFn: async () => {
-      const res = await api.get("/photo-tags", { params: { media_id: media.id } })
+      const res = await api.get(`/media/${media.id}/tags`)
       return res.data
     },
   })
