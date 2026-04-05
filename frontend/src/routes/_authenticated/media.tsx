@@ -8,6 +8,7 @@ import { AppHeader } from "../../components/layout/AppHeader"
 import { Breadcrumbs } from "../../components/layout/Breadcrumbs"
 import { MasonryGrid } from "../../components/media/MasonryGrid"
 import { MediaCard } from "../../components/media/MediaCard"
+import { MediaDetailModal } from "../../components/media/MediaDetailModal"
 import {
   MediaFilterBar,
   type MediaFilterType,
@@ -67,6 +68,7 @@ function MediaGalleryPage() {
   const [activeFilter, setActiveFilter] = useState<MediaFilterType>("all")
   const [sortBy, setSortBy] = useState<MediaSortOption>("chronological")
   const [page, setPage] = useState(0)
+  const [selectedMedia, setSelectedMedia] = useState<Media | null>(null)
 
   // Reset page when filter changes
   const handleFilterChange = (filter: MediaFilterType) => {
@@ -210,9 +212,13 @@ function MediaGalleryPage() {
             <>
               <MasonryGrid>
                 {sortedMedia.map((item) => (
-                  <MediaCard key={item.id} media={item} />
+                  <MediaCard key={item.id} media={item} onClick={setSelectedMedia} />
                 ))}
               </MasonryGrid>
+
+              {selectedMedia && (
+                <MediaDetailModal media={selectedMedia} onClose={() => setSelectedMedia(null)} />
+              )}
 
               {/* Load More */}
               {hasNextPage && (

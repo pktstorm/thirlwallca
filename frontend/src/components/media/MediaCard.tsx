@@ -3,6 +3,7 @@ import type { Media } from "../../types/media"
 
 interface MediaCardProps {
   media: Media
+  onClick?: (media: Media) => void
 }
 
 function formatDuration(seconds: number): string {
@@ -26,11 +27,11 @@ function formatDate(dateStr: string | null, approx: boolean): string | null {
   }
 }
 
-function PhotoCard({ media }: MediaCardProps) {
+function PhotoCard({ media, onClick }: MediaCardProps) {
   const dateStr = formatDate(media.dateTaken, media.dateTakenApprox)
 
   return (
-    <div className="break-inside-avoid mb-4 rounded-xl overflow-hidden border border-sage-200 dark:border-dark-border shadow-sm hover:shadow-md transition-shadow group cursor-pointer relative">
+    <div onClick={() => onClick?.(media)} className="break-inside-avoid mb-4 rounded-xl overflow-hidden border border-sage-200 dark:border-dark-border shadow-sm hover:shadow-md transition-shadow group cursor-pointer relative">
       <img
         src={media.url}
         alt={media.title ?? "Photo"}
@@ -159,10 +160,10 @@ function AudioCard({ media }: MediaCardProps) {
   )
 }
 
-export function MediaCard({ media }: MediaCardProps) {
+export function MediaCard({ media, onClick }: MediaCardProps) {
   switch (media.mediaType) {
     case "photo":
-      return <PhotoCard media={media} />
+      return <PhotoCard media={media} onClick={onClick} />
     case "document":
       return <DocumentCard media={media} />
     case "video":
@@ -170,6 +171,6 @@ export function MediaCard({ media }: MediaCardProps) {
     case "audio":
       return <AudioCard media={media} />
     default:
-      return <PhotoCard media={media} />
+      return <PhotoCard media={media} onClick={onClick} />
   }
 }
