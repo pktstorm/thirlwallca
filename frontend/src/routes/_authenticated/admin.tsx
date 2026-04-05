@@ -611,6 +611,7 @@ function ErrorsTab() {
   const queryClient = useQueryClient()
   const [showResolved, setShowResolved] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [copiedErrorId, setCopiedErrorId] = useState<string | null>(null)
 
   const { data: errors, isLoading } = useQuery<ErrorLogEntry[]>({
     queryKey: ["admin-errors", showResolved],
@@ -719,6 +720,29 @@ function ErrorsTab() {
                         ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
                         : "bg-primary/10 text-primary-dark hover:bg-primary/20")}>
                     {err.resolved ? "Unresolve" : <><CheckCircle className="h-3 w-3" /> Mark Resolved</>}
+                  </button>
+                  <button onClick={() => {
+                    const md = [
+                      `## ${err.status_code} ${err.error_type}`,
+                      `**Method:** \`${err.method}\`  `,
+                      `**Path:** \`${err.path}\`  `,
+                      `**Time:** ${new Date(err.created_at).toLocaleString()}  `,
+                      err.ip_address ? `**IP:** ${err.ip_address}  ` : "",
+                      "",
+                      `### Error`,
+                      "```",
+                      err.error_message,
+                      "```",
+                      err.traceback ? `\n### Traceback\n\`\`\`\n${err.traceback}\`\`\`` : "",
+                      err.request_body ? `\n### Request Body\n\`\`\`json\n${err.request_body}\n\`\`\`` : "",
+                      err.user_agent ? `\n**User Agent:** ${err.user_agent}` : "",
+                    ].filter(Boolean).join("\n")
+                    navigator.clipboard.writeText(md)
+                    setCopiedErrorId(err.id)
+                    setTimeout(() => setCopiedErrorId(null), 2000)
+                  }}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-sage-600 bg-sage-50 rounded-lg hover:bg-sage-100 transition-colors">
+                    {copiedErrorId === err.id ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy as Markdown</>}
                   </button>
                   <button onClick={() => deleteMutation.mutate(err.id)}
                     className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
