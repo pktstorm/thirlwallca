@@ -157,3 +157,63 @@ async def generate_upload_url(
         ExpiresIn=3600,
     )
     return UploadUrlResponse(upload_url=upload_url, s3_key=s3_key)
+
+
+@router.post("/{media_id}/rotate")
+async def rotate_media(
+    media_id: uuid.UUID,
+    degrees: int = Query(90, description="Rotation degrees: 90, 180, or 270"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Permanently rotate an image in S3 by the given degrees clockwise."""
+    import io
+    from PIL import Image
+
+    if degrees not in (90, 180, 270):
+        raise HTTPException(status_code=400, detail="Degrees must be 90, 180, or 270")
+
+    result = await db.execute(select(Media).where(Media.id == media_id))
+    media = result.scalar_one_or_none()
+    if not media:
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    s3_client = boto3.client("s3", region_name=settings.s3_region)
+
+    # Download image from S3
+    try:
+        response = s3_client.get_object(Bucket=settings.s3_media_bucket, Key=media.s3_key)
+        image_data = response["Body"].read()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to download image: {exc}") from exc
+
+    # Rotate with Pillow (negative because PIL rotates counter-clockwise)
+    try:
+        img = Image.open(io.BytesIO(image_data))
+        rotated = img.rotate(-degrees, expand=True)
+
+        # Save to buffer
+        buffer = io.BytesIO()
+        fmt = "JPEG" if media.mime_type == "image/jpeg" else "PNG"
+        rotated.save(buffer, format=fmt, quality=90)
+        buffer.seek(0)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to rotate image: {exc}") from exc
+
+    # Upload rotated image back to S3 (overwrite)
+    try:
+        content_type = media.mime_type or "image/jpeg"
+        s3_client.put_object(
+            Bucket=settings.s3_media_bucket,
+            Key=media.s3_key,
+            Body=buffer.getvalue(),
+            ContentType=content_type,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to upload rotated image: {exc}") from exc
+
+    # Update dimensions if tracked
+    if media.width and media.height and degrees in (90, 270):
+        media.width, media.height = media.height, media.width
+        await db.flush()
+
+    return {"detail": f"Image rotated {degrees}° clockwise", "width": media.width, "height": media.height}

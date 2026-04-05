@@ -24,6 +24,7 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
   const queryClient = useQueryClient()
 
   const [rotation, setRotation] = useState(0)
+  const [imageVersion, setImageVersion] = useState(0)
   const [title, setTitle] = useState(media.title ?? "")
   const [description, setDescription] = useState(media.description ?? "")
   const [dateTaken, setDateTaken] = useState(media.dateTaken ?? "")
@@ -98,6 +99,18 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
     },
   })
 
+  const rotateMutation = useMutation({
+    mutationFn: async () => {
+      await api.post(`/media/${media.id}/rotate`, null, { params: { degrees: rotation } })
+    },
+    onSuccess: () => {
+      setRotation(0)
+      setImageVersion((v) => v + 1)
+      queryClient.invalidateQueries({ queryKey: ["media"] })
+      queryClient.invalidateQueries({ queryKey: ["person-media"] })
+    },
+  })
+
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -116,25 +129,35 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
     <div className="fixed inset-0 z-50 bg-black/90 flex" onClick={onClose}>
       <div className="flex flex-col lg:flex-row w-full h-full" onClick={(e) => e.stopPropagation()}>
         {/* Image area */}
-        <div className="flex-1 flex items-center justify-center p-4 relative min-h-0">
+        <div className="flex-1 flex items-center justify-center p-4 relative min-h-[300px] lg:min-h-0">
           <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10">
             <X className="h-5 w-5" />
           </button>
 
-          {/* Rotation controls */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
-            <button onClick={() => setRotation((r) => (r - 90) % 360)}
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors" title="Rotate left">
-              <RotateCcw className="h-5 w-5" />
-            </button>
-            <button onClick={() => setRotation((r) => (r + 90) % 360)}
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors" title="Rotate right">
-              <RotateCw className="h-5 w-5" />
-            </button>
-          </div>
+          {/* Rotation controls — top-left, always visible */}
+          {canEdit && (
+            <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
+              <button onClick={() => setRotation((r) => (r - 90 + 360) % 360)}
+                className="p-2.5 rounded-xl bg-black/50 hover:bg-black/70 text-white transition-colors backdrop-blur-sm" title="Rotate left">
+                <RotateCcw className="h-5 w-5" />
+              </button>
+              <button onClick={() => setRotation((r) => (r + 90) % 360)}
+                className="p-2.5 rounded-xl bg-black/50 hover:bg-black/70 text-white transition-colors backdrop-blur-sm" title="Rotate right">
+                <RotateCw className="h-5 w-5" />
+              </button>
+              {rotation !== 0 && (
+                <button onClick={() => rotateMutation.mutate()}
+                  disabled={rotateMutation.isPending}
+                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-primary/90 hover:bg-primary text-earth-900 text-xs font-bold transition-colors backdrop-blur-sm">
+                  {rotateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save Rotation
+                </button>
+              )}
+            </div>
+          )}
 
           <img
-            src={media.url}
+            src={`${media.url}${imageVersion ? `?v=${imageVersion}` : ""}`}
             alt={media.title ?? "Photo"}
             className="max-w-full max-h-full object-contain transition-transform duration-200"
             style={{ transform: `rotate(${rotation}deg)` }}
