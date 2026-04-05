@@ -26,6 +26,7 @@ import {
   Loader2,
   Trash2,
   Map as MapIcon,
+  Upload,
 } from "lucide-react"
 import { api } from "../../lib/api"
 import { AppHeader } from "../../components/layout/AppHeader"
@@ -41,6 +42,7 @@ import { PhotoLightbox } from "../../components/person/PhotoLightbox"
 import { TimelineEventEditor } from "../../components/person/TimelineEventEditor"
 import { ShareMemory } from "../../components/person/ShareMemory"
 import { generateBirthContext } from "../../lib/historicalContext"
+import { MediaUploadModal } from "../../components/person/MediaUploadModal"
 import { LifePathMap } from "../../components/map/LifePathMap"
 
 export const Route = createFileRoute("/_authenticated/person/$personId")({
@@ -364,6 +366,7 @@ function PersonProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>("overview")
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [showLifePath, setShowLifePath] = useState(false)
+  const [showMediaUpload, setShowMediaUpload] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
   const setLinkedPersonId = useAuthStore((s) => s.setLinkedPersonId)
@@ -1057,9 +1060,17 @@ function PersonProfilePage() {
         {/* ═══ GALLERY TAB ═══ */}
         {activeTab === "gallery" && (
           <section className="space-y-3">
-            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
-              <Image className="h-4 w-4" /> Gallery
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
+                <Image className="h-4 w-4" /> Gallery
+              </h3>
+              {canEdit && (
+                <button onClick={() => setShowMediaUpload(true)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-primary-dark dark:text-primary hover:text-primary transition-colors">
+                  <Upload className="h-3.5 w-3.5" /> Upload Photo
+                </button>
+              )}
+            </div>
             {mediaItems && mediaItems.length > 0 ? (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {mediaItems.map((item, idx) => (
@@ -1082,8 +1093,22 @@ function PersonProfilePage() {
                 <Image className="h-10 w-10 text-sage-300 mx-auto mb-3" />
                 <p className="text-sage-400 text-sm font-medium">No photos yet</p>
                 <p className="text-sage-300 text-xs mt-1">Photos and documents will be displayed here.</p>
+                {canEdit && (
+                  <button onClick={() => setShowMediaUpload(true)}
+                    className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-earth-900 font-medium text-xs rounded-lg hover:bg-primary-dark hover:text-white transition-colors">
+                    <Upload className="h-3.5 w-3.5" /> Upload Photo
+                  </button>
+                )}
               </div>
             )}
+
+            {/* Media Upload Modal */}
+            <MediaUploadModal
+              open={showMediaUpload}
+              onClose={() => setShowMediaUpload(false)}
+              defaultPersonId={personId}
+              defaultPersonName={fullName}
+            />
           </section>
         )}
 
