@@ -199,9 +199,14 @@ async def get_family_story(
     db: AsyncSession = Depends(get_db),
 ):
     """Get a single family story with all details."""
-    # Try by ID first, then by slug
-    result = await db.execute(select(FamilyStory).where(FamilyStory.id == story_id))
-    story = result.scalar_one_or_none()
+    story = None
+    # Try by UUID first (only if it looks like a UUID), then by slug
+    try:
+        uid = uuid.UUID(story_id)
+        result = await db.execute(select(FamilyStory).where(FamilyStory.id == uid))
+        story = result.scalar_one_or_none()
+    except (ValueError, AttributeError):
+        pass
     if not story:
         result = await db.execute(select(FamilyStory).where(FamilyStory.slug == story_id))
         story = result.scalar_one_or_none()
