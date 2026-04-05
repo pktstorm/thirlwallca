@@ -27,10 +27,13 @@ import { Route as AuthenticatedQuestionsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedMediaRouteImport } from './routes/_authenticated/media'
 import { Route as AuthenticatedMapRouteImport } from './routes/_authenticated/map'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedFamilyStoriesRouteImport } from './routes/_authenticated/family-stories'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedTreePersonIdRouteImport } from './routes/_authenticated/tree.$personId'
 import { Route as AuthenticatedPersonPersonIdRouteImport } from './routes/_authenticated/person.$personId'
+import { Route as AuthenticatedFamilyStoriesNewRouteImport } from './routes/_authenticated/family-stories.new'
+import { Route as AuthenticatedFamilyStoriesStoryIdRouteImport } from './routes/_authenticated/family-stories.$storyId'
 import { Route as AuthenticatedAdminSignupRequestsRouteImport } from './routes/_authenticated/admin.signup-requests'
 import { Route as AuthenticatedPersonPersonIdStoryEditRouteImport } from './routes/_authenticated/person.$personId_.story-edit'
 import { Route as AuthenticatedPersonPersonIdStoryRouteImport } from './routes/_authenticated/person.$personId_.story'
@@ -124,6 +127,12 @@ const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedFamilyStoriesRoute =
+  AuthenticatedFamilyStoriesRouteImport.update({
+    id: '/family-stories',
+    path: '/family-stories',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
@@ -145,6 +154,18 @@ const AuthenticatedPersonPersonIdRoute =
     id: '/person/$personId',
     path: '/person/$personId',
     getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedFamilyStoriesNewRoute =
+  AuthenticatedFamilyStoriesNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => AuthenticatedFamilyStoriesRoute,
+  } as any)
+const AuthenticatedFamilyStoriesStoryIdRoute =
+  AuthenticatedFamilyStoriesStoryIdRouteImport.update({
+    id: '/$storyId',
+    path: '/$storyId',
+    getParentRoute: () => AuthenticatedFamilyStoriesRoute,
   } as any)
 const AuthenticatedAdminSignupRequestsRoute =
   AuthenticatedAdminSignupRequestsRouteImport.update({
@@ -174,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/request-access': typeof RequestAccessRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/calendar': typeof AuthenticatedCalendarRoute
+  '/family-stories': typeof AuthenticatedFamilyStoriesRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/map': typeof AuthenticatedMapRoute
   '/media': typeof AuthenticatedMediaRoute
@@ -186,6 +208,8 @@ export interface FileRoutesByFullPath {
   '/traditions': typeof AuthenticatedTraditionsRoute
   '/tree': typeof AuthenticatedTreeRouteWithChildren
   '/admin/signup-requests': typeof AuthenticatedAdminSignupRequestsRoute
+  '/family-stories/$storyId': typeof AuthenticatedFamilyStoriesStoryIdRoute
+  '/family-stories/new': typeof AuthenticatedFamilyStoriesNewRoute
   '/person/$personId': typeof AuthenticatedPersonPersonIdRoute
   '/tree/$personId': typeof AuthenticatedTreePersonIdRoute
   '/person/$personId/story': typeof AuthenticatedPersonPersonIdStoryRoute
@@ -200,6 +224,7 @@ export interface FileRoutesByTo {
   '/request-access': typeof RequestAccessRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/calendar': typeof AuthenticatedCalendarRoute
+  '/family-stories': typeof AuthenticatedFamilyStoriesRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/map': typeof AuthenticatedMapRoute
   '/media': typeof AuthenticatedMediaRoute
@@ -212,6 +237,8 @@ export interface FileRoutesByTo {
   '/traditions': typeof AuthenticatedTraditionsRoute
   '/tree': typeof AuthenticatedTreeRouteWithChildren
   '/admin/signup-requests': typeof AuthenticatedAdminSignupRequestsRoute
+  '/family-stories/$storyId': typeof AuthenticatedFamilyStoriesStoryIdRoute
+  '/family-stories/new': typeof AuthenticatedFamilyStoriesNewRoute
   '/person/$personId': typeof AuthenticatedPersonPersonIdRoute
   '/tree/$personId': typeof AuthenticatedTreePersonIdRoute
   '/person/$personId/story': typeof AuthenticatedPersonPersonIdStoryRoute
@@ -228,6 +255,7 @@ export interface FileRoutesById {
   '/request-access': typeof RequestAccessRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
+  '/_authenticated/family-stories': typeof AuthenticatedFamilyStoriesRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/map': typeof AuthenticatedMapRoute
   '/_authenticated/media': typeof AuthenticatedMediaRoute
@@ -240,6 +268,8 @@ export interface FileRoutesById {
   '/_authenticated/traditions': typeof AuthenticatedTraditionsRoute
   '/_authenticated/tree': typeof AuthenticatedTreeRouteWithChildren
   '/_authenticated/admin/signup-requests': typeof AuthenticatedAdminSignupRequestsRoute
+  '/_authenticated/family-stories/$storyId': typeof AuthenticatedFamilyStoriesStoryIdRoute
+  '/_authenticated/family-stories/new': typeof AuthenticatedFamilyStoriesNewRoute
   '/_authenticated/person/$personId': typeof AuthenticatedPersonPersonIdRoute
   '/_authenticated/tree/$personId': typeof AuthenticatedTreePersonIdRoute
   '/_authenticated/person/$personId_/story': typeof AuthenticatedPersonPersonIdStoryRoute
@@ -256,6 +286,7 @@ export interface FileRouteTypes {
     | '/request-access'
     | '/admin'
     | '/calendar'
+    | '/family-stories'
     | '/home'
     | '/map'
     | '/media'
@@ -268,6 +299,8 @@ export interface FileRouteTypes {
     | '/traditions'
     | '/tree'
     | '/admin/signup-requests'
+    | '/family-stories/$storyId'
+    | '/family-stories/new'
     | '/person/$personId'
     | '/tree/$personId'
     | '/person/$personId/story'
@@ -282,6 +315,7 @@ export interface FileRouteTypes {
     | '/request-access'
     | '/admin'
     | '/calendar'
+    | '/family-stories'
     | '/home'
     | '/map'
     | '/media'
@@ -294,6 +328,8 @@ export interface FileRouteTypes {
     | '/traditions'
     | '/tree'
     | '/admin/signup-requests'
+    | '/family-stories/$storyId'
+    | '/family-stories/new'
     | '/person/$personId'
     | '/tree/$personId'
     | '/person/$personId/story'
@@ -309,6 +345,7 @@ export interface FileRouteTypes {
     | '/request-access'
     | '/_authenticated/admin'
     | '/_authenticated/calendar'
+    | '/_authenticated/family-stories'
     | '/_authenticated/home'
     | '/_authenticated/map'
     | '/_authenticated/media'
@@ -321,6 +358,8 @@ export interface FileRouteTypes {
     | '/_authenticated/traditions'
     | '/_authenticated/tree'
     | '/_authenticated/admin/signup-requests'
+    | '/_authenticated/family-stories/$storyId'
+    | '/_authenticated/family-stories/new'
     | '/_authenticated/person/$personId'
     | '/_authenticated/tree/$personId'
     | '/_authenticated/person/$personId_/story'
@@ -465,6 +504,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/family-stories': {
+      id: '/_authenticated/family-stories'
+      path: '/family-stories'
+      fullPath: '/family-stories'
+      preLoaderRoute: typeof AuthenticatedFamilyStoriesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/calendar': {
       id: '/_authenticated/calendar'
       path: '/calendar'
@@ -492,6 +538,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/person/$personId'
       preLoaderRoute: typeof AuthenticatedPersonPersonIdRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/family-stories/new': {
+      id: '/_authenticated/family-stories/new'
+      path: '/new'
+      fullPath: '/family-stories/new'
+      preLoaderRoute: typeof AuthenticatedFamilyStoriesNewRouteImport
+      parentRoute: typeof AuthenticatedFamilyStoriesRoute
+    }
+    '/_authenticated/family-stories/$storyId': {
+      id: '/_authenticated/family-stories/$storyId'
+      path: '/$storyId'
+      fullPath: '/family-stories/$storyId'
+      preLoaderRoute: typeof AuthenticatedFamilyStoriesStoryIdRouteImport
+      parentRoute: typeof AuthenticatedFamilyStoriesRoute
     }
     '/_authenticated/admin/signup-requests': {
       id: '/_authenticated/admin/signup-requests'
@@ -528,6 +588,23 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
+interface AuthenticatedFamilyStoriesRouteChildren {
+  AuthenticatedFamilyStoriesStoryIdRoute: typeof AuthenticatedFamilyStoriesStoryIdRoute
+  AuthenticatedFamilyStoriesNewRoute: typeof AuthenticatedFamilyStoriesNewRoute
+}
+
+const AuthenticatedFamilyStoriesRouteChildren: AuthenticatedFamilyStoriesRouteChildren =
+  {
+    AuthenticatedFamilyStoriesStoryIdRoute:
+      AuthenticatedFamilyStoriesStoryIdRoute,
+    AuthenticatedFamilyStoriesNewRoute: AuthenticatedFamilyStoriesNewRoute,
+  }
+
+const AuthenticatedFamilyStoriesRouteWithChildren =
+  AuthenticatedFamilyStoriesRoute._addFileChildren(
+    AuthenticatedFamilyStoriesRouteChildren,
+  )
+
 interface AuthenticatedTreeRouteChildren {
   AuthenticatedTreePersonIdRoute: typeof AuthenticatedTreePersonIdRoute
 }
@@ -542,6 +619,7 @@ const AuthenticatedTreeRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
+  AuthenticatedFamilyStoriesRoute: typeof AuthenticatedFamilyStoriesRouteWithChildren
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedMapRoute: typeof AuthenticatedMapRoute
   AuthenticatedMediaRoute: typeof AuthenticatedMediaRoute
@@ -561,6 +639,7 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
+  AuthenticatedFamilyStoriesRoute: AuthenticatedFamilyStoriesRouteWithChildren,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedMapRoute: AuthenticatedMapRoute,
   AuthenticatedMediaRoute: AuthenticatedMediaRoute,

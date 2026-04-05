@@ -476,3 +476,43 @@ class ChallengeProgress(Base):
     current_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     completed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class FamilyStory(Base):
+    """A story about the family, a place, or an event — not tied to a single person."""
+    __tablename__ = "family_stories"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    subtitle: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)  # markdown or plain text
+    cover_image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category: Mapped[str] = mapped_column(String(64), nullable=False, default="history")  # history, place, event, heritage, other
+    external_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # e.g., Wikipedia link
+    location_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True)
+    published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class FamilyStoryPerson(Base):
+    """Links a family story to people mentioned in it."""
+    __tablename__ = "family_story_persons"
+
+    story_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("family_stories.id", ondelete="CASCADE"), primary_key=True)
+    person_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="CASCADE"), primary_key=True)
+
+
+class FamilyStoryImage(Base):
+    """Images attached to a family story (beyond the cover image)."""
+    __tablename__ = "family_story_images"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    story_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("family_stories.id", ondelete="CASCADE"), nullable=False)
+    s3_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # external URL alternative
+    caption: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)

@@ -309,6 +309,46 @@ function groupRelationships(
   return groups
 }
 
+// ── Family Stories Section (stories mentioning this person) ──
+
+function FamilyStoriesSection({ personId }: { personId: string }) {
+  const { data: stories } = useQuery<{ id: string; title: string; slug: string; category: string; cover_image_url: string | null }[]>({
+    queryKey: ["family-stories-for-person", personId],
+    queryFn: async () => {
+      const res = await api.get("/family-stories", { params: { person_id: personId } })
+      return res.data
+    },
+  })
+
+  if (!stories || stories.length === 0) return null
+
+  return (
+    <section className="space-y-3">
+      <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sage-600 dark:text-dark-text-muted">
+        <BookOpen className="h-4 w-4" /> Family Stories
+      </h3>
+      <div className="space-y-2">
+        {stories.map((s) => (
+          <Link key={s.id} to="/family-stories/$storyId" params={{ storyId: s.slug }}
+            className="flex items-center gap-3 bg-white/70 dark:bg-dark-card/70 border border-sage-200 dark:border-dark-border rounded-xl p-3 hover:border-primary/40 hover:shadow-md transition-all group">
+            {s.cover_image_url ? (
+              <img src={s.cover_image_url} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-12 h-12 rounded-lg bg-primary/5 flex items-center justify-center flex-shrink-0">
+                <BookOpen className="h-5 w-5 text-sage-300" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-earth-900 dark:text-dark-text group-hover:text-primary-dark transition-colors truncate">{s.title}</p>
+              <p className="text-[10px] text-sage-400 capitalize">{s.category}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // ── Main Page ──
 
 function PersonProfilePage() {
@@ -950,6 +990,9 @@ function PersonProfilePage() {
 
             {/* Family Memories */}
             <ShareMemory personId={personId} personName={fullName} />
+
+            {/* Family Stories mentioning this person */}
+            <FamilyStoriesSection personId={personId} />
           </>
         )}
 
