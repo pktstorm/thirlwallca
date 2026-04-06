@@ -9,6 +9,7 @@ import { Breadcrumbs } from "../../components/layout/Breadcrumbs"
 import { MasonryGrid } from "../../components/media/MasonryGrid"
 import { MediaCard } from "../../components/media/MediaCard"
 import { MediaDetailModal } from "../../components/media/MediaDetailModal"
+import { MediaUploadModal } from "../../components/person/MediaUploadModal"
 import {
   MediaFilterBar,
   type MediaFilterType,
@@ -74,6 +75,7 @@ function MediaGalleryPage() {
   const [page, setPage] = useState(0)
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null)
   const [needsInfo, setNeedsInfo] = useState<NeedsInfoFilter>("")
+  const [showUpload, setShowUpload] = useState(false)
 
   // Reset page when filter changes
   const handleFilterChange = (filter: MediaFilterType) => {
@@ -185,7 +187,7 @@ function MediaGalleryPage() {
                 history
               </p>
             </div>
-            <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-earth-900 font-medium text-sm hover:bg-primary-dark hover:text-white transition-colors shadow-sm">
+            <button onClick={() => setShowUpload(true)} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-earth-900 font-medium text-sm hover:bg-primary-dark hover:text-white transition-colors shadow-sm">
               <Plus className="h-4 w-4" />
               Upload New Media
             </button>
@@ -235,7 +237,7 @@ function MediaGalleryPage() {
               </p>
             </div>
           ) : sortedMedia.length === 0 ? (
-            <EmptyState />
+            <EmptyState onUpload={() => setShowUpload(true)} />
           ) : (
             <>
               <MasonryGrid>
@@ -247,6 +249,8 @@ function MediaGalleryPage() {
               {selectedMedia && (
                 <MediaDetailModal media={selectedMedia} onClose={() => setSelectedMedia(null)} />
               )}
+
+              <MediaUploadModal open={showUpload} onClose={() => setShowUpload(false)} />
 
               {/* Load More */}
               {hasNextPage && (
@@ -286,7 +290,7 @@ function SkeletonGrid() {
   )
 }
 
-function EmptyState() {
+function EmptyState({ onUpload }: { onUpload: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-20">
       <div className="w-16 h-16 rounded-full bg-sage-100 dark:bg-dark-surface flex items-center justify-center mb-4">
@@ -299,7 +303,7 @@ function EmptyState() {
         Start building your family archive by uploading photos, documents,
         videos, and audio recordings.
       </p>
-      <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-earth-900 font-medium text-sm hover:bg-primary-dark hover:text-white transition-colors shadow-sm">
+      <button onClick={onUpload} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-earth-900 font-medium text-sm hover:bg-primary-dark hover:text-white transition-colors shadow-sm">
         <Plus className="h-4 w-4" />
         Upload New Media
       </button>
