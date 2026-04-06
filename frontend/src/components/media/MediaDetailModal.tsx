@@ -12,6 +12,8 @@ interface MediaDetailModalProps {
 
 interface PersonResult {
   id: string; first_name: string; last_name: string
+  birth_date: string | null; death_date: string | null
+  birth_place_text: string | null; is_living: boolean
 }
 
 interface MediaTag {
@@ -262,12 +264,23 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
                     className="w-full rounded-lg border border-sage-200 dark:border-dark-border bg-sage-50 dark:bg-dark-surface pl-9 pr-3 py-2 text-sm focus:outline-none" />
                   {searchResults && searchResults.filter((p) => !taggedIds.has(p.id)).length > 0 && (
                     <div className="absolute z-10 mt-1 w-full border border-sage-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-card overflow-hidden shadow-lg">
-                      {searchResults.filter((p) => !taggedIds.has(p.id)).map((p) => (
-                        <button key={p.id} onClick={() => tagMutation.mutate(p.id)}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-sage-50 dark:hover:bg-dark-surface">
-                          <Plus className="h-3 w-3 text-primary" /> {p.first_name} {p.last_name}
-                        </button>
-                      ))}
+                      {searchResults.filter((p) => !taggedIds.has(p.id)).map((p) => {
+                        const birthYear = p.birth_date?.split("-")[0]
+                        const deathYear = p.death_date?.split("-")[0]
+                        const dateHint = birthYear ? (p.is_living ? `b. ${birthYear}` : `${birthYear}\u2013${deathYear ?? "?"}`) : null
+                        return (
+                          <button key={p.id} onClick={() => tagMutation.mutate(p.id)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-sage-50 dark:hover:bg-dark-surface">
+                            <Plus className="h-3 w-3 text-primary flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm text-earth-900 dark:text-dark-text">{p.first_name} {p.last_name}</p>
+                              {(dateHint || p.birth_place_text) && (
+                                <p className="text-[10px] text-sage-400 truncate">{[dateHint, p.birth_place_text].filter(Boolean).join(" \u2022 ")}</p>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
