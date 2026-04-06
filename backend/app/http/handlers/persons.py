@@ -232,8 +232,10 @@ async def get_person_summary(
         )
     )
     spouses = []
+    seen_spouse_ids = set()
     for rel, spouse in spouse_result.all():
-        if spouse.id != person_id:
+        if spouse.id != person_id and spouse.id not in seen_spouse_ids:
+            seen_spouse_ids.add(spouse.id)
             name = spouse.first_name
             if rel.marriage_date:
                 name += f" in {rel.marriage_date.year}"
