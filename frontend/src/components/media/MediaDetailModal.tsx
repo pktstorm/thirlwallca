@@ -115,11 +115,21 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
 
   const tagMutation = useMutation({
     mutationFn: async (personId: string) => {
-      await api.post(`/media/${media.id}/tag`, { person_id: personId })
+      try {
+        await api.post(`/media/${media.id}/tag`, { person_id: personId })
+      } catch (err: any) {
+        // 409 = already tagged — not an error, just refresh
+        if (err.response?.status === 409) return
+        throw err
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["media-tags", media.id] })
       setPersonSearch("")
+    },
+    onError: () => {
+      // Also refresh on error in case tag exists
+      queryClient.invalidateQueries({ queryKey: ["media-tags", media.id] })
     },
   })
 
