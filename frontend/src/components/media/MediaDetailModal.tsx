@@ -124,12 +124,11 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["media-tags", media.id] })
+      queryClient.refetchQueries({ queryKey: ["media-tags", media.id] })
       setPersonSearch("")
     },
     onError: () => {
-      // Also refresh on error in case tag exists
-      queryClient.invalidateQueries({ queryKey: ["media-tags", media.id] })
+      queryClient.refetchQueries({ queryKey: ["media-tags", media.id] })
     },
   })
 
@@ -138,7 +137,7 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
       await api.delete(`/media/${media.id}/tag/${personId}`)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["media-tags", media.id] })
+      queryClient.refetchQueries({ queryKey: ["media-tags", media.id] })
     },
   })
 
