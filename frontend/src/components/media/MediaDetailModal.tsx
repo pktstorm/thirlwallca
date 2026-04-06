@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { X, RotateCw, RotateCcw, Save, Trash2, Calendar, FileText, Users, Plus, Search, Loader2, Check } from "lucide-react"
+import { X, RotateCw, RotateCcw, Save, Trash2, Calendar, FileText, Users, Plus, Search, Loader2, Check, MapPin } from "lucide-react"
 import { api } from "../../lib/api"
 import { useAuthStore } from "../../stores/authStore"
 import type { Media } from "../../types/media"
@@ -34,6 +34,25 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
   const [editing, setEditing] = useState(false)
   const [personSearch, setPersonSearch] = useState("")
   const [saved, setSaved] = useState(false)
+  const [locationCity, setLocationCity] = useState("")
+  const [locationRegion, setLocationRegion] = useState("")
+  const [locationCountry, setLocationCountry] = useState("")
+  const [locationName, setLocationName] = useState<string | null>(null)
+
+  // Fetch location if exists
+  useQuery({
+    queryKey: ["media-location", media.locationId],
+    queryFn: async () => {
+      const res = await api.get(`/locations/${media.locationId}`)
+      const loc = res.data
+      setLocationName([loc.name, loc.region, loc.country].filter(Boolean).join(", "))
+      setLocationCity(loc.name ?? "")
+      setLocationRegion(loc.region ?? "")
+      setLocationCountry(loc.country ?? "")
+      return loc
+    },
+    enabled: !!media.locationId,
+  })
 
   // Fetch persons tagged in this media
   const { data: tags } = useQuery<MediaTag[]>({
@@ -56,11 +75,23 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      // Create or find location if city is provided
+      let locationId = media.locationId
+      if (locationCity.trim()) {
+        const locRes = await api.post("/locations", {
+          name: locationCity.trim(),
+          region: locationRegion.trim() || null,
+          country: locationCountry.trim() || null,
+        })
+        locationId = locRes.data.id
+      }
+
       await api.put(`/media/${media.id}`, {
         title: title.trim() || null,
         description: description.trim() || null,
         date_taken: dateTaken || null,
         date_taken_approx: dateApprox,
+        location_id: locationId,
       })
     },
     onSuccess: () => {
@@ -234,6 +265,25 @@ export function MediaDetailModal({ media, onClose }: MediaDetailModalProps) {
                 <p className="text-sm text-sage-400 dark:text-dark-text-muted">
                   {media.dateTaken ? `${media.dateTakenApprox ? "~" : ""}${new Date(media.dateTaken).toLocaleDateString()}` : "Unknown"}
                 </p>
+              )}
+            </div>
+
+            {/* Location */}
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-sage-400 mb-1 block flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> Location
+              </label>
+              {editing ? (
+                <div className="grid grid-cols-3 gap-1.5">
+                  <input type="text" value={locationCity} onChange={(e) => setLocationCity(e.target.value)} placeholder="City"
+                    className="rounded-lg border border-sage-200 dark:border-dark-border bg-sage-50 dark:bg-dark-surface px-2.5 py-1.5 text-xs focus:outline-none" />
+                  <input type="text" value={locationRegion} onChange={(e) => setLocationRegion(e.target.value)} placeholder="Region"
+                    className="rounded-lg border border-sage-200 dark:border-dark-border bg-sage-50 dark:bg-dark-surface px-2.5 py-1.5 text-xs focus:outline-none" />
+                  <input type="text" value={locationCountry} onChange={(e) => setLocationCountry(e.target.value)} placeholder="Country"
+                    className="rounded-lg border border-sage-200 dark:border-dark-border bg-sage-50 dark:bg-dark-surface px-2.5 py-1.5 text-xs focus:outline-none" />
+                </div>
+              ) : (
+                <p className="text-sm text-sage-400 dark:text-dark-text-muted">{locationName || "Unknown"}</p>
               )}
             </div>
 
