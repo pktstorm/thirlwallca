@@ -22,6 +22,10 @@ router = APIRouter()
 async def list_media(
     media_type: str | None = Query(None),
     person_id: uuid.UUID | None = Query(None),
+    needs_date: bool | None = Query(None, description="Filter for undated items"),
+    needs_tags: bool | None = Query(None, description="Filter for untagged items"),
+    needs_title: bool | None = Query(None, description="Filter for untitled items"),
+    needs_description: bool | None = Query(None, description="Filter for items without notes"),
     skip: int = 0,
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
@@ -33,6 +37,17 @@ async def list_media(
         stmt = stmt.join(MediaPerson, MediaPerson.media_id == Media.id).where(
             MediaPerson.person_id == person_id
         )
+    if needs_date:
+        stmt = stmt.where(Media.date_taken.is_(None))
+    if needs_title:
+        stmt = stmt.where((Media.title.is_(None)) | (Media.title == ""))
+    if needs_description:
+        stmt = stmt.where((Media.description.is_(None)) | (Media.description == ""))
+    if needs_tags:
+        # Subquery: media IDs that have at least one tag
+        from sqlalchemy import exists
+        has_tag = exists().where(MediaPerson.media_id == Media.id)
+        stmt = stmt.where(~has_tag)
     stmt = stmt.order_by(Media.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()

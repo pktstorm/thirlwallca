@@ -66,11 +66,14 @@ function toMedia(raw: MediaApiResponse): Media {
 
 const PAGE_SIZE = 50
 
+type NeedsInfoFilter = "" | "needs_date" | "needs_tags" | "needs_title" | "needs_description"
+
 function MediaGalleryPage() {
   const [activeFilter, setActiveFilter] = useState<MediaFilterType>("all")
   const [sortBy, setSortBy] = useState<MediaSortOption>("chronological")
   const [page, setPage] = useState(0)
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null)
+  const [needsInfo, setNeedsInfo] = useState<NeedsInfoFilter>("")
 
   // Reset page when filter changes
   const handleFilterChange = (filter: MediaFilterType) => {
@@ -87,8 +90,11 @@ function MediaGalleryPage() {
     if (activeFilter !== "all") {
       params.media_type = activeFilter
     }
+    if (needsInfo) {
+      params[needsInfo] = "true"
+    }
     return params
-  }, [activeFilter, page])
+  }, [activeFilter, page, needsInfo])
 
   // Fetch media
   const {
@@ -186,7 +192,7 @@ function MediaGalleryPage() {
           </div>
 
           {/* Filter bar */}
-          <div className="mb-6">
+          <div className="mb-6 space-y-3">
             <MediaFilterBar
               activeFilter={activeFilter}
               onFilterChange={handleFilterChange}
@@ -194,6 +200,26 @@ function MediaGalleryPage() {
               onSortChange={setSortBy}
               counts={counts}
             />
+            {/* Needs Info filters */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium text-sage-400">Needs info:</span>
+              {([
+                { value: "" as NeedsInfoFilter, label: "All" },
+                { value: "needs_date" as NeedsInfoFilter, label: "No Date" },
+                { value: "needs_tags" as NeedsInfoFilter, label: "Untagged" },
+                { value: "needs_title" as NeedsInfoFilter, label: "Untitled" },
+                { value: "needs_description" as NeedsInfoFilter, label: "No Notes" },
+              ]).map((f) => (
+                <button key={f.value} onClick={() => { setNeedsInfo(f.value); setPage(0) }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    needsInfo === f.value
+                      ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                      : "bg-white dark:bg-dark-card border border-sage-200 dark:border-dark-border text-sage-400 hover:text-earth-900"
+                  }`}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Content area */}
