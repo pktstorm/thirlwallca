@@ -1,10 +1,11 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { Link } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
-import { Heart, Plus } from "lucide-react"
+import { Heart, Plus, Edit } from "lucide-react"
 import type { Person } from "../../types/person"
 import type { Relationship } from "../../types/relationship"
 import { api } from "../../lib/api"
+import { EditRelationshipModal } from "./EditRelationshipModal"
 
 interface GroupedRelationships {
   parents: { relationship: Relationship; person: Person }[]
@@ -73,6 +74,7 @@ interface SpouseRelApi {
 }
 
 export function FamilyMiniTree({ personId, person, grouped, canEdit, onAddRelationship }: FamilyMiniTreeProps) {
+  const [editingRel, setEditingRel] = useState<{ relationship: Relationship; person: Person } | null>(null)
   const hasParents = grouped.parents.length > 0
   const hasSpouses = grouped.spouses.length > 0
   const hasChildren = grouped.children.length > 0
@@ -179,6 +181,15 @@ export function FamilyMiniTree({ personId, person, grouped, canEdit, onAddRelati
                   <Heart className="h-3 w-3 text-pink-300" />
                 </div>
                 <MiniNode person={group.spouse} size="sm" />
+                {canEdit && (() => {
+                  const spouseRel = grouped.spouses.find((s) => s.person.id === group.spouse!.id)
+                  return spouseRel ? (
+                    <button onClick={() => setEditingRel(spouseRel)}
+                      className="p-1 text-sage-300 hover:text-primary-dark transition-colors" title="Edit marriage details">
+                      <Edit className="h-3 w-3" />
+                    </button>
+                  ) : null
+                })()}
               </div>
             ) : hasSpouses ? (
               <p className="text-[9px] text-sage-300 dark:text-dark-text-muted/50 italic">From a previous relationship</p>
@@ -197,14 +208,20 @@ export function FamilyMiniTree({ personId, person, grouped, canEdit, onAddRelati
         {/* Spouses with no children shown as simple connection */}
         {grouped.spouses
           .filter((sp) => !childrenBySpouse.some((g) => g.spouse?.id === sp.person.id))
-          .map(({ person: sp }) => (
-            <div key={sp.id} className="flex items-center gap-2 mt-1">
+          .map((spouseEntry) => (
+            <div key={spouseEntry.person.id} className="flex items-center gap-2 mt-1">
               <div className="flex items-center gap-0.5">
                 <div className="w-3 h-px bg-sage-300 dark:bg-dark-border" />
                 <Heart className="h-3 w-3 text-pink-300" />
                 <div className="w-3 h-px bg-sage-300 dark:bg-dark-border" />
               </div>
-              <MiniNode person={sp} size="sm" />
+              <MiniNode person={spouseEntry.person} size="sm" />
+              {canEdit && (
+                <button onClick={() => setEditingRel(spouseEntry)}
+                  className="p-1 text-sage-300 hover:text-primary-dark transition-colors" title="Edit marriage details">
+                  <Edit className="h-3 w-3" />
+                </button>
+              )}
             </div>
           ))}
       </div>
@@ -216,6 +233,16 @@ export function FamilyMiniTree({ personId, person, grouped, canEdit, onAddRelati
             <Plus className="h-3.5 w-3.5" /> Add Relationship
           </button>
         </div>
+      )}
+
+      {editingRel && (
+        <EditRelationshipModal
+          open={!!editingRel}
+          onClose={() => setEditingRel(null)}
+          relationship={editingRel.relationship}
+          otherPerson={editingRel.person}
+          personId={personId}
+        />
       )}
     </div>
   )
