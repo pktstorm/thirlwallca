@@ -31,6 +31,7 @@ class Person(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     first_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    preferred_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     middle_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     last_name: Mapped[str] = mapped_column(String(128), nullable=False)
     maiden_name: Mapped[str | None] = mapped_column(String(128), nullable=True)

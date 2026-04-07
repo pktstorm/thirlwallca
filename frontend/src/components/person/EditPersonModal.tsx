@@ -23,6 +23,7 @@ interface EditPersonModalProps {
 
 interface EditFormState {
   firstName: string
+  preferredName: string
   middleName: string
   lastName: string
   maidenName: string
@@ -95,6 +96,7 @@ const emptyResidenceForm: ResidenceFormState = {
 function personToFormState(person: Person): EditFormState {
   return {
     firstName: person.firstName,
+    preferredName: person.preferredName ?? "",
     middleName: person.middleName ?? "",
     lastName: person.lastName,
     maidenName: person.maidenName ?? "",
@@ -297,6 +299,7 @@ export function EditPersonModal({
     try {
       const payload: Record<string, unknown> = {
         first_name: form.firstName.trim(),
+        preferred_name: form.preferredName.trim() || null,
         middle_name: form.middleName.trim() || null,
         last_name: form.lastName.trim(),
         maiden_name: form.maidenName.trim() || null,
@@ -432,6 +435,23 @@ export function EditPersonModal({
                     </p>
                   )}
                 </div>
+                <div>
+                  <label className={labelClass}>
+                    Preferred Name
+                    <span className="text-sage-300 font-normal ml-1">(goes by)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.preferredName}
+                    onChange={(e) => updateField("preferredName", e.target.value)}
+                    className={inputClass(false)}
+                    placeholder="e.g., Lee, Bobby, etc."
+                  />
+                  <p className="mt-0.5 text-[10px] text-sage-300">If this person goes by a different name, it will be shown instead of their first name.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Middle Name</label>
                   <input

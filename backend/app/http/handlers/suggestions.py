@@ -48,11 +48,12 @@ async def get_person_suggestions(
 
     # Name matching: prefix match on first and/or last name
     if first and last:
-        # Both names provided — strongest match
         conditions.append(
             (Person.first_name.ilike(f"{first}%")) & (Person.last_name.ilike(f"{last}%"))
         )
-        # Also match maiden name
+        conditions.append(
+            (Person.preferred_name.ilike(f"{first}%")) & (Person.last_name.ilike(f"{last}%"))
+        )
         conditions.append(
             (Person.first_name.ilike(f"{first}%")) & (Person.maiden_name.ilike(f"{last}%"))
         )
@@ -61,6 +62,7 @@ async def get_person_suggestions(
         conditions.append(Person.maiden_name.ilike(f"{last}%"))
     elif first:
         conditions.append(Person.first_name.ilike(f"{first}%"))
+        conditions.append(Person.preferred_name.ilike(f"{first}%"))
 
     if not conditions:
         return []

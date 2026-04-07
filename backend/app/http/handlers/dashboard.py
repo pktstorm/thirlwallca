@@ -200,7 +200,7 @@ async def get_dashboard(
         on_this_day.append({
             "type": "birth",
             "person_id": str(p.id),
-            "person_name": f"{p.first_name} {p.last_name}",
+            "person_name": f"{p.preferred_name or p.first_name} {p.last_name}",
             "year": p.birth_date.year if p.birth_date else None,
             "detail": f"Born on this day in {p.birth_date.year}" if p.birth_date else "Born on this day",
         })
@@ -216,7 +216,7 @@ async def get_dashboard(
         on_this_day.append({
             "type": "death",
             "person_id": str(p.id),
-            "person_name": f"{p.first_name} {p.last_name}",
+            "person_name": f"{p.preferred_name or p.first_name} {p.last_name}",
             "year": p.death_date.year if p.death_date else None,
             "detail": f"Passed away on this day in {p.death_date.year}" if p.death_date else "Passed away on this day",
         })
@@ -239,7 +239,7 @@ async def get_dashboard(
             on_this_day.append({
                 "type": "marriage",
                 "person_id": str(p1.id),
-                "person_name": f"{p1.first_name} {p1.last_name} & {p2.first_name} {p2.last_name}",
+                "person_name": f"{p1.preferred_name or p1.first_name} {p1.last_name} & {p2.preferred_name or p2.first_name} {p2.last_name}",
                 "year": rel.marriage_date.year if rel.marriage_date else None,
                 "detail": f"Married on this day in {rel.marriage_date.year}" if rel.marriage_date else "Married on this day",
             })
@@ -369,13 +369,13 @@ async def get_dashboard(
 
                     members.append({
                         "id": str(other.id),
-                        "name": f"{other.first_name} {other.last_name}",
+                        "name": f"{other.preferred_name or other.first_name} {other.last_name}",
                         "profile_photo_url": other.profile_photo_url,
                         "relationship": role,
                     })
 
                 my_branch = {
-                    "person_name": f"{person.first_name} {person.last_name}",
+                    "person_name": f"{person.preferred_name or person.first_name} {person.last_name}",
                     "members": members,
                 }
         except (ValueError, AttributeError):

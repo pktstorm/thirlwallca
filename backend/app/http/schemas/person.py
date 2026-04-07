@@ -22,6 +22,7 @@ class LocationSummary(BaseModel):
 
 class PersonCreate(BaseModel):
     first_name: str
+    preferred_name: str | None = None
     middle_name: str | None = None
     last_name: str
     maiden_name: str | None = None
@@ -50,6 +51,7 @@ class PersonCreate(BaseModel):
 
 class PersonUpdate(BaseModel):
     first_name: str | None = None
+    preferred_name: str | None = None
     middle_name: str | None = None
     last_name: str | None = None
     maiden_name: str | None = None
@@ -79,6 +81,7 @@ class PersonUpdate(BaseModel):
 class PersonResponse(BaseModel):
     id: uuid.UUID
     first_name: str
+    preferred_name: str | None
     middle_name: str | None
     last_name: str
     maiden_name: str | None

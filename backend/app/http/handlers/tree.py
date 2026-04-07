@@ -12,12 +12,13 @@ router = APIRouter()
 
 def _person_to_node(person: Person) -> TreeNode:
     """Convert a Person model instance to a TreeNode for React Flow."""
+    display_first = person.preferred_name or person.first_name
     return TreeNode(
         id=str(person.id),
-        label=f"{person.first_name} {person.last_name}",
+        label=f"{display_first} {person.last_name}",
         data={
             "id": str(person.id),
-            "first_name": person.first_name,
+            "first_name": display_first,
             "middle_name": person.middle_name,
             "last_name": person.last_name,
             "maiden_name": person.maiden_name,

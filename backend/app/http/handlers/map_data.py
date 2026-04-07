@@ -47,7 +47,7 @@ class PersonMapContext(BaseModel):
 def _extract_person_places(person: Person, loc: Location, place_type: str, year: int | None, generation: int = 0) -> MapPlace:
     return MapPlace(
         person_id=person.id,
-        person_name=f"{person.first_name} {person.last_name}",
+        person_name=f"{person.preferred_name or person.first_name} {person.last_name}",
         place_type=place_type,
         location_id=loc.id,
         city=loc.name,
@@ -207,7 +207,7 @@ async def get_ancestor_trail(
 
     return AncestorTrailResponse(
         places=places,
-        person_name=f"{person.first_name} {person.last_name}",
+        person_name=f"{person.preferred_name or person.first_name} {person.last_name}",
         ancestor_count=len(all_ids) - 1,
     )
 
@@ -266,7 +266,7 @@ async def get_person_map_context(
 
     return PersonMapContext(
         person_id=person.id,
-        person_name=f"{person.first_name} {person.last_name}",
+        person_name=f"{person.preferred_name or person.first_name} {person.last_name}",
         profile_photo_url=person.profile_photo_url,
         birth_year=birth_year,
         death_year=death_year,

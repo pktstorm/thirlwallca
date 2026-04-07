@@ -10,6 +10,7 @@ export interface LocationSummary {
 export interface Person {
   id: string
   firstName: string
+  preferredName: string | null
   middleName: string | null
   lastName: string
   maidenName: string | null

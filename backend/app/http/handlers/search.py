@@ -43,6 +43,7 @@ async def search_persons(
             word_conditions.append(
                 or_(
                     Person.first_name.ilike(word_pattern),
+                    Person.preferred_name.ilike(word_pattern),
                     Person.middle_name.ilike(word_pattern),
                     Person.last_name.ilike(word_pattern),
                     Person.maiden_name.ilike(word_pattern),
@@ -57,6 +58,7 @@ async def search_persons(
             or_(
                 # Original single-field ILIKE
                 Person.first_name.ilike(search_term),
+                Person.preferred_name.ilike(search_term),
                 Person.last_name.ilike(search_term),
                 Person.maiden_name.ilike(search_term),
                 Person.bio.ilike(search_term),

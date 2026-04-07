@@ -41,6 +41,7 @@ async def _build_person_response(person: Person, db: AsyncSession) -> dict:
     data = {
         "id": person.id,
         "first_name": person.first_name,
+        "preferred_name": person.preferred_name,
         "middle_name": person.middle_name,
         "last_name": person.last_name,
         "maiden_name": person.maiden_name,
@@ -136,7 +137,7 @@ async def create_person(
     await db.refresh(person)
 
     await log_audit(db, user=current_user, action="create", entity_type="person",
-                    entity_id=person.id, entity_label=f"{person.first_name} {person.last_name}")
+                    entity_id=person.id, entity_label=f"{person.preferred_name or person.first_name} {person.last_name}")
 
     return await _build_person_response(person, db)
 
@@ -168,7 +169,7 @@ async def update_person(
     await db.refresh(person)
 
     await log_audit(db, user=current_user, action="update", entity_type="person",
-                    entity_id=person.id, entity_label=f"{person.first_name} {person.last_name}")
+                    entity_id=person.id, entity_label=f"{person.preferred_name or person.first_name} {person.last_name}")
 
     return await _build_person_response(person, db)
 
@@ -187,7 +188,7 @@ async def delete_person(
     person = result.scalar_one_or_none()
     if not person:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
-    person_label = f"{person.first_name} {person.last_name}"
+    person_label = f"{person.preferred_name or person.first_name} {person.last_name}"
     await db.delete(person)
 
     await log_audit(db, user=current_user, action="delete", entity_type="person",
@@ -236,7 +237,7 @@ async def get_person_summary(
     for rel, spouse in spouse_result.all():
         if spouse.id != person_id and spouse.id not in seen_spouse_ids:
             seen_spouse_ids.add(spouse.id)
-            name = spouse.first_name
+            name = spouse.preferred_name or spouse.first_name
             if rel.marriage_date:
                 name += f" in {rel.marriage_date.year}"
             spouses.append(name)

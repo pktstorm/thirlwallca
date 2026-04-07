@@ -63,6 +63,7 @@ interface LocationSummaryApi {
 interface PersonApiResponse {
   id: string
   first_name: string
+  preferred_name: string | null
   middle_name: string | null
   last_name: string
   maiden_name: string | null
@@ -143,6 +144,7 @@ function mapApiPerson(data: PersonApiResponse): Person {
   return {
     id: data.id,
     firstName: data.first_name,
+    preferredName: data.preferred_name ?? null,
     middleName: data.middle_name,
     lastName: data.last_name,
     maidenName: data.maiden_name,
@@ -223,7 +225,8 @@ function formatDate(dateStr: string | null, approx: boolean): string {
 }
 
 function buildFullName(person: Person): string {
-  return [person.firstName, person.middleName, person.lastName, person.suffix]
+  const first = person.preferredName || person.firstName
+  return [first, person.middleName, person.lastName, person.suffix]
     .filter(Boolean)
     .join(" ")
 }
