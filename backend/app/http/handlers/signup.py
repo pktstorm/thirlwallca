@@ -17,8 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.deps import get_db
 from app.domain.models import OnboardToken, SignupCode, SignupRequest, User
-from app.domain.enums import SignupStatus
+from app.domain.enums import SignupStatus, UserRole
 from app.http.schemas.signup import (
+    CheckSignupCodeBody,
     OnboardCompleteBody,
     OnboardValidateResponse,
     RequestAccessBody,
@@ -28,6 +29,29 @@ from app.http.schemas.auth import TokenResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.post("/check-signup-code")
+async def check_signup_code(
+    body: CheckSignupCodeBody,
+    db: AsyncSession = Depends(get_db),
+):
+    """Check if a string is a valid, active signup code. Does not consume it."""
+    result = await db.execute(
+        select(SignupCode).where(SignupCode.code == body.code)
+    )
+    code_obj = result.scalar_one_or_none()
+
+    if not code_obj:
+        return {"valid": False}
+    if not code_obj.is_active:
+        return {"valid": False}
+    if code_obj.expires_at and code_obj.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        return {"valid": False}
+    if code_obj.max_uses and code_obj.use_count >= code_obj.max_uses:
+        return {"valid": False}
+
+    return {"valid": True}
 
 
 @router.post("/request-access", status_code=201)
@@ -245,6 +269,7 @@ async def complete_onboard(
     if not settings.cognito_user_pool_id:
         logger.info("Dev mode: would set password for %s", email)
         cognito_sub = f"dev-sub-{secrets.token_hex(8)}"
+        cognito_role = None
     else:
         client = boto3.client("cognito-idp", region_name=settings.cognito_region)
         try:
@@ -262,10 +287,12 @@ async def complete_onboard(
                 Username=email,
             )
             cognito_sub = None
+            cognito_role = None
             for attr in user_resp.get("UserAttributes", []):
                 if attr["Name"] == "sub":
                     cognito_sub = attr["Value"]
-                    break
+                elif attr["Name"] == "custom:role":
+                    cognito_role = attr["Value"]
             if not cognito_sub:
                 raise HTTPException(status_code=500, detail="Could not retrieve user identity.")
 
@@ -277,11 +304,20 @@ async def complete_onboard(
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
+    # Determine the role: use Cognito custom:role (set by signup code) or default to VIEWER
+    assigned_role = UserRole.VIEWER
+    if settings.cognito_user_pool_id and cognito_role:
+        try:
+            assigned_role = UserRole(cognito_role)
+        except ValueError:
+            pass
+
     if not user:
         user = User(
             email=email,
             cognito_sub=cognito_sub,
             display_name=f"{req.first_name} {req.last_name}",
+            role=assigned_role,
             linked_person_id=body.linked_person_id,
         )
         db.add(user)

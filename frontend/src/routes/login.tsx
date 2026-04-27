@@ -59,6 +59,25 @@ function LoginPage() {
       })
       navigate({ to: "/home" })
     } catch (err: any) {
+      // Check if the "password" is actually a valid signup code
+      if (password.trim()) {
+        try {
+          const { data } = await api.post("/auth/check-signup-code", {
+            code: password.trim(),
+          })
+          if (data.valid) {
+            // Redirect to signup with email and code pre-filled
+            navigate({
+              to: "/request-access",
+              search: { email, code: password.trim() },
+            } as any)
+            return
+          }
+        } catch {
+          // Ignore — fall through to normal error
+        }
+      }
+
       const message =
         err.message || "Invalid email or password. Please try again."
       setError(message)
@@ -193,7 +212,7 @@ function LoginPage() {
             to="/request-access"
             className="mt-4 flex w-full items-center justify-center rounded-lg border border-gray-200 dark:border-dark-border bg-white/50 dark:bg-dark-surface/50 py-2.5 text-sm font-medium text-gray-700 dark:text-dark-text transition-colors hover:bg-gray-50 dark:hover:bg-dark-surface hover:border-gray-300"
           >
-            Request Access
+            Sign Up
           </Link>
 
           {/* Bottom text */}

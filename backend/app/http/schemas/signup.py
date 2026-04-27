@@ -6,6 +6,10 @@ from pydantic import BaseModel, EmailStr
 from app.domain.enums import SignupStatus
 
 
+class CheckSignupCodeBody(BaseModel):
+    code: str
+
+
 class RequestAccessBody(BaseModel):
     email: EmailStr
     first_name: str

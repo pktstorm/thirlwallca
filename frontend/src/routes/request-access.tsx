@@ -1,21 +1,34 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Mail, User, Loader2, ArrowLeft, CheckCircle, KeyRound } from "lucide-react"
 import { api } from "../lib/api"
 
 export const Route = createFileRoute("/request-access")({
   component: RequestAccessPage,
+  validateSearch: (search: Record<string, unknown>): { email?: string; code?: string } => ({
+    email: (search.email as string) || undefined,
+    code: (search.code as string) || undefined,
+  }),
 })
 
 function RequestAccessPage() {
   const navigate = useNavigate()
-  const [email, setEmail] = useState("")
+  const { email: prefillEmail, code: prefillCode } = Route.useSearch()
+  const [email, setEmail] = useState(prefillEmail || "")
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
-  const [signupCode, setSignupCode] = useState("")
+  const [signupCode, setSignupCode] = useState(prefillCode || "")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [showCodeHint, setShowCodeHint] = useState(!!prefillCode)
+
+  // If redirected from login with a signup code, show a helpful message
+  useEffect(() => {
+    if (prefillCode) {
+      setShowCodeHint(true)
+    }
+  }, [prefillCode])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,11 +111,19 @@ function RequestAccessPage() {
           ) : (
             <>
               <h2 className="text-2xl font-semibold text-gray-900 dark:text-dark-text">
-                Request Access
+                Sign Up
               </h2>
               <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-muted">
-                Submit your details and a family administrator will review your request.
+                {signupCode.trim()
+                  ? "Enter your name to complete signup with your code."
+                  : "Submit your details and a family administrator will review your request."}
               </p>
+
+              {showCodeHint && (
+                <div className="mt-4 rounded-lg border border-primary/30 bg-primary/5 dark:bg-primary/10 px-4 py-3 text-sm text-primary-dark dark:text-primary">
+                  Looks like you have a signup code! Just enter your name below to get started.
+                </div>
+              )}
 
               {error && (
                 <div className="mt-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50 px-4 py-3 text-sm text-red-700 dark:text-red-400">
