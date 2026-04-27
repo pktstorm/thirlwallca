@@ -21,6 +21,8 @@ from app.auth.rbac import require_role
 from app.domain.enums import UserRole
 from app.services.location_service import find_or_create_location, format_place_text
 from app.services.audit_service import log_audit
+from app.http.schemas.orbit import OrbitResponse
+from app.services.orbit_service import build_orbit
 
 router = APIRouter()
 
@@ -377,10 +379,6 @@ async def profile_photo_confirm(
     await db.refresh(person)
 
     return await _build_person_response(person, db)
-
-
-from app.http.schemas.orbit import OrbitResponse
-from app.services.orbit_service import build_orbit
 
 
 @router.get("/{person_id}/orbit", response_model=OrbitResponse)
