@@ -14,6 +14,7 @@ import { useTreeStore } from "../../stores/treeStore"
 import { useUiStore } from "../../stores/uiStore"
 import { OrbitalCanvas } from "../../components/orbital/OrbitalCanvas"
 import { OrbitalControlsPanel } from "../../components/orbital/OrbitalControlsPanel"
+import { TreeDisplayControls } from "../../components/tree/TreeDisplayControls"
 
 export const Route = createFileRoute("/_authenticated/tree/$personId")({
   component: TreePersonPage,
@@ -108,13 +109,16 @@ function TreePersonPage() {
           <OrbitalControlsPanel />
         </>
       ) : (
-        data && (
-          <FamilyTreeCanvas
-            nodes={data.nodes}
-            edges={data.edges}
-            focusPersonId={personId}
-          />
-        )
+        <>
+          {data && (
+            <FamilyTreeCanvas
+              nodes={data.nodes}
+              edges={data.edges}
+              focusPersonId={personId}
+            />
+          )}
+          <TreeDisplayControls />
+        </>
       )}
 
       {/* Person detail panel - right sidebar */}

@@ -20,6 +20,7 @@ import { useUiStore } from "../../stores/uiStore"
 import { useAuthStore } from "../../stores/authStore"
 import { OrbitalCanvas } from "../../components/orbital/OrbitalCanvas"
 import { OrbitalControlsPanel } from "../../components/orbital/OrbitalControlsPanel"
+import { TreeDisplayControls } from "../../components/tree/TreeDisplayControls"
 
 export const Route = createFileRoute("/_authenticated/tree")({
   component: TreePage,
@@ -225,15 +226,18 @@ function TreePage() {
           </div>
         )
       ) : (
-        mergedData && (
-          <FamilyTreeCanvas
-            nodes={mergedData.nodes}
-            edges={mergedData.edges}
-            focusPersonId={effectiveBranchPersonId ?? undefined}
-            onExpand={handleExpand}
-            isExpanding={expandMutation.isPending}
-          />
-        )
+        <>
+          {mergedData && (
+            <FamilyTreeCanvas
+              nodes={mergedData.nodes}
+              edges={mergedData.edges}
+              focusPersonId={effectiveBranchPersonId ?? undefined}
+              onExpand={handleExpand}
+              isExpanding={expandMutation.isPending}
+            />
+          )}
+          <TreeDisplayControls />
+        </>
       )}
 
       {/* Person detail panel */}
