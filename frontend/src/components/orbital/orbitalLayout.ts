@@ -13,6 +13,8 @@ import {
   ORBITAL_HEMISPHERE_TOP_END,
   ORBITAL_HEMISPHERE_BOTTOM_START,
   ORBITAL_HEMISPHERE_BOTTOM_END,
+  ORBITAL_SIBLING_RADIUS,
+  ORBITAL_SPOUSE_OFFSET,
 } from "./orbitalConstants"
 import { polarToCartesian, ringRadius, radialArcPath } from "./orbitalGeometry"
 
@@ -24,7 +26,7 @@ interface Wedge {
 
 export function computeOrbitalLayout(
   data: OrbitData,
-  _options: ControlOptions,
+  options: ControlOptions,
   _viewport: { width: number; height: number },
 ): LayoutResult {
   const slots: Slot[] = []
@@ -190,6 +192,53 @@ export function computeOrbitalLayout(
       type: "descendant",
       path: radialArcPath(inner.r, inner.t, outer.r, outer.t),
     })
+  }
+
+  // 7) Siblings — alternate left/right of focus along the equator at small radius.
+  if (options.showSiblings && data.siblings.length > 0) {
+    data.siblings.forEach((s, i) => {
+      const side = i % 2 === 0 ? -1 : 1
+      const offsetIndex = Math.floor(i / 2) + 1
+      const angle = side === -1 ? Math.PI : 0
+      const r = ORBITAL_SIBLING_RADIUS * offsetIndex
+      const { x, y } = polarToCartesian(r, angle)
+      slots.push({
+        id: `sibling:${s.id}`,
+        personId: s.id,
+        ring: 0,
+        angle,
+        x,
+        y,
+        branchKey: "self",
+        parentSlotId: null,
+        isSpouse: false,
+        isSibling: true,
+      })
+    })
+  }
+
+  // 8) Spouses — sit at the same angle as their partner, offset radially outward by ORBITAL_SPOUSE_OFFSET.
+  if (options.showSpouses && data.spouses.length > 0) {
+    for (const sp of data.spouses) {
+      const partner = slots.find((s) => s.personId === sp.spouseOf && !s.isSpouse)
+      if (!partner) continue
+      const partnerR = Math.hypot(partner.x, partner.y)
+      const partnerTheta = partnerR > 0 ? Math.atan2(partner.y, partner.x) : Math.PI / 2
+      const newR = partnerR + ORBITAL_SPOUSE_OFFSET
+      const { x, y } = polarToCartesian(newR, partnerTheta)
+      slots.push({
+        id: `${sp.spouseOf}:spouse:${sp.id}`,
+        personId: sp.id,
+        ring: partner.ring,
+        angle: partnerTheta,
+        x,
+        y,
+        branchKey: partner.branchKey,
+        parentSlotId: partner.id,
+        isSpouse: true,
+        isSibling: false,
+      })
+    }
   }
 
   // 4) Bounds (rough): max ring radius * 2 for each axis, padded.

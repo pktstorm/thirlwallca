@@ -185,3 +185,69 @@ describe("computeOrbitalLayout — descendants", () => {
     }
   })
 })
+
+describe("computeOrbitalLayout — siblings", () => {
+  it("places siblings on a small ring near focus when showSiblings is true", () => {
+    const data: OrbitData = {
+      focus: person("focus"),
+      ancestorsByGeneration: [],
+      descendants: [],
+      siblings: [person("sib1"), person("sib2")],
+      spouses: [],
+    }
+    const r = computeOrbitalLayout(data, { ...baseOptions, showSiblings: true }, { width: 800, height: 600 })
+    const sibSlots = r.slots.filter((s) => s.isSibling)
+    expect(sibSlots).toHaveLength(2)
+    for (const s of sibSlots) {
+      expect(Math.hypot(s.x, s.y)).toBeGreaterThan(0)
+    }
+  })
+
+  it("does not place siblings when showSiblings is false", () => {
+    const data: OrbitData = {
+      focus: person("focus"),
+      ancestorsByGeneration: [],
+      descendants: [],
+      siblings: [person("sib1")],
+      spouses: [],
+    }
+    const r = computeOrbitalLayout(data, { ...baseOptions, showSiblings: false }, { width: 800, height: 600 })
+    expect(r.slots.find((s) => s.personId === "sib1")).toBeUndefined()
+  })
+})
+
+describe("computeOrbitalLayout — spouses", () => {
+  it("places spouses radially offset from their partner when showSpouses is true", () => {
+    const data: OrbitData = {
+      focus: person("focus"),
+      ancestorsByGeneration: [
+        [{ ...person("dad", "male"), parentSlot: "father", parentId: "focus" }],
+      ],
+      descendants: [],
+      siblings: [],
+      spouses: [{ ...person("focusWife"), spouseOf: "focus" }, { ...person("dadWife"), spouseOf: "dad" }],
+    }
+    const r = computeOrbitalLayout(data, { ...baseOptions, showSpouses: true }, { width: 800, height: 600 })
+    const fw = r.slots.find((s) => s.personId === "focusWife")!
+    const dw = r.slots.find((s) => s.personId === "dadWife")!
+    expect(fw.isSpouse).toBe(true)
+    expect(dw.isSpouse).toBe(true)
+    // Spouse-of-focus sits offset from origin
+    expect(Math.hypot(fw.x, fw.y)).toBeGreaterThan(0)
+    // Spouse-of-dad sits offset from dad's position
+    const dad = r.slots.find((s) => s.personId === "dad")!
+    expect(Math.hypot(dw.x - dad.x, dw.y - dad.y)).toBeGreaterThan(0)
+  })
+
+  it("does not place spouses when showSpouses is false", () => {
+    const data: OrbitData = {
+      focus: person("focus"),
+      ancestorsByGeneration: [],
+      descendants: [],
+      siblings: [],
+      spouses: [{ ...person("w"), spouseOf: "focus" }],
+    }
+    const r = computeOrbitalLayout(data, { ...baseOptions, showSpouses: false }, { width: 800, height: 600 })
+    expect(r.slots.find((s) => s.personId === "w")).toBeUndefined()
+  })
+})
