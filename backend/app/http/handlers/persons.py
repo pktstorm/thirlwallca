@@ -394,7 +394,7 @@ async def get_person_orbit(
     current_user: User = Depends(get_current_user),
 ) -> OrbitResponse:
     try:
-        return await build_orbit(
+        result = await build_orbit(
             db,
             person_id=person_id,
             ancestor_depth=ancestor_depth,
@@ -406,3 +406,19 @@ async def get_person_orbit(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    await log_audit(
+        db,
+        user=current_user,
+        action="view_orbit",
+        entity_type="person",
+        entity_id=person_id,
+        details={
+            "ancestor_depth": ancestor_depth,
+            "descendant_depth": descendant_depth,
+            "include_siblings": include_siblings,
+            "include_spouses": include_spouses,
+        },
+    )
+    await db.commit()
+    return result

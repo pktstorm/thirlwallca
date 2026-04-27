@@ -256,3 +256,21 @@ async def test_orbit_endpoint_clamps_depth(db, async_client, auth_headers):
         headers=auth_headers,
     )
     assert resp.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_orbit_endpoint_writes_audit_log(db, async_client, auth_headers):
+    """Verify a row is added to audit_logs when the endpoint is hit."""
+    from app.domain.models import Person, AuditLog
+    from app.domain.enums import Gender
+    from sqlalchemy import select
+
+    p = Person(id=uuid4(), first_name="A", last_name="B", gender=Gender.MALE, is_living=True)
+    db.add(p)
+    await db.commit()
+
+    resp = await async_client.get(f"/api/v1/persons/{p.id}/orbit", headers=auth_headers)
+    assert resp.status_code == 200
+
+    rows = (await db.execute(select(AuditLog).where(AuditLog.action == "view_orbit"))).scalars().all()
+    assert len(rows) >= 1
