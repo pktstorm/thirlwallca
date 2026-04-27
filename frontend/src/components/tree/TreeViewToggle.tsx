@@ -1,4 +1,4 @@
-import { GitBranch, TreePine } from "lucide-react"
+import { GitBranch, TreePine, Orbit } from "lucide-react"
 import { useTreeStore, type TreeViewMode } from "../../stores/treeStore"
 
 interface TreeViewToggleProps {
@@ -12,8 +12,8 @@ export function TreeViewToggle({ nodeCount, disabled }: TreeViewToggleProps) {
   const setBranchPersonId = useTreeStore((s) => s.setBranchPersonId)
 
   function handleClick(mode: TreeViewMode) {
-    if (disabled && mode === "branch") return
-    if (mode === "branch") {
+    if (disabled && (mode === "branch" || mode === "orbital")) return
+    if (mode === "branch" || mode === "orbital") {
       // Reset to logged-in user's branch (clear override)
       setBranchPersonId(null)
     }
@@ -34,6 +34,20 @@ export function TreeViewToggle({ nodeCount, disabled }: TreeViewToggleProps) {
       >
         <GitBranch className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Branch</span>
+      </button>
+      <div className="w-px h-5 bg-sage-200 dark:bg-dark-border" />
+      <button
+        onClick={() => handleClick("orbital")}
+        disabled={disabled}
+        title={disabled ? "Link your profile to a person to use Orbital view" : "Orbital ring view"}
+        className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
+          treeViewMode === "orbital" && !disabled
+            ? "bg-primary/10 text-primary-dark dark:text-primary"
+            : "text-sage-400 dark:text-dark-text-muted hover:text-earth-900 dark:hover:text-dark-text"
+        } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+      >
+        <Orbit className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Orbital</span>
       </button>
       <div className="w-px h-5 bg-sage-200 dark:bg-dark-border" />
       <button
