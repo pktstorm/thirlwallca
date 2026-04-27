@@ -134,6 +134,17 @@ export function OrbitalCanvas({ focusPersonId }: Props) {
           )
         })}
       </div>
+
+      {layout.rings.filter((r) => r.hemisphere === "top").length === 0 && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded-full bg-sage-50 dark:bg-dark-surface text-sage-500 border border-sage-200 dark:border-dark-border">
+          No ancestors recorded
+        </div>
+      )}
+      {layout.rings.filter((r) => r.hemisphere === "bottom").length === 0 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded-full bg-sage-50 dark:bg-dark-surface text-sage-500 border border-sage-200 dark:border-dark-border">
+          No descendants recorded
+        </div>
+      )}
     </div>
   )
 }
