@@ -1,6 +1,6 @@
 import { create } from "zustand"
 
-export type TreeViewMode = "branch" | "full-tree"
+export type TreeViewMode = "branch" | "full-tree" | "orbital"
 
 interface TreeState {
   focusedPersonId: string | null
@@ -30,7 +30,7 @@ interface TreeState {
 function getInitialTreeViewMode(): TreeViewMode {
   try {
     const stored = localStorage.getItem("treeViewMode")
-    if (stored === "branch" || stored === "full-tree") return stored
+    if (stored === "branch" || stored === "full-tree" || stored === "orbital") return stored
     if (stored === "my-branch") return "branch"
   } catch {
     // localStorage unavailable
