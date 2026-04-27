@@ -113,3 +113,75 @@ describe("computeOrbitalLayout — ancestors", () => {
     expect(pgf.angle).toBeCloseTo((9 * Math.PI) / 8) // unchanged from previous test
   })
 })
+
+describe("computeOrbitalLayout — descendants", () => {
+  it("places single child at center of bottom hemisphere (π/2)", () => {
+    const data: OrbitData = {
+      focus: person("focus"),
+      ancestorsByGeneration: [],
+      descendants: [
+        { ...person("c1"), parentId: "focus", children: [] },
+      ],
+      siblings: [], spouses: [],
+    }
+    const result = computeOrbitalLayout(data, baseOptions, { width: 800, height: 600 })
+    const c1 = result.slots.find((s) => s.personId === "c1")!
+    expect(c1.angle).toBeCloseTo(Math.PI / 2)
+    expect(c1.branchKey).toBe("descendant")
+    expect(c1.ring).toBe(-1)
+  })
+
+  it("divides hemisphere proportionally by subtree leaf count", () => {
+    // c1 has 3 leaves (one child with 3 grandchildren)
+    // c2 has 1 leaf (no children)
+    // Total leaves = 4. c1 gets 3/4 of the bottom hemisphere [0, 3π/4]. c2 gets [3π/4, π].
+    const data: OrbitData = {
+      focus: person("focus"),
+      ancestorsByGeneration: [],
+      descendants: [
+        {
+          ...person("c1"), parentId: "focus", children: [
+            {
+              ...person("gc1"), parentId: "c1", children: [
+                { ...person("ggc1"), parentId: "gc1", children: [] },
+                { ...person("ggc2"), parentId: "gc1", children: [] },
+                { ...person("ggc3"), parentId: "gc1", children: [] },
+              ],
+            },
+          ],
+        },
+        { ...person("c2"), parentId: "focus", children: [] },
+      ],
+      siblings: [], spouses: [],
+    }
+    const result = computeOrbitalLayout(data, baseOptions, { width: 800, height: 600 })
+    const c1 = result.slots.find((s) => s.personId === "c1")!
+    const c2 = result.slots.find((s) => s.personId === "c2")!
+    // c1 wedge = [0, 3π/4], center = 3π/8
+    expect(c1.angle).toBeCloseTo((3 * Math.PI) / 8)
+    // c2 wedge = [3π/4, π], center = 7π/8
+    expect(c2.angle).toBeCloseTo((7 * Math.PI) / 8)
+  })
+
+  it("creates an edge from each descendant to its parent_id slot", () => {
+    const data: OrbitData = {
+      focus: person("focus"),
+      ancestorsByGeneration: [],
+      descendants: [
+        {
+          ...person("c1"), parentId: "focus", children: [
+            { ...person("gc1"), parentId: "c1", children: [] },
+          ],
+        },
+      ],
+      siblings: [], spouses: [],
+    }
+    const result = computeOrbitalLayout(data, baseOptions, { width: 800, height: 600 })
+    const edgeIds = result.edges.map((e) => e.id)
+    expect(edgeIds).toContain("focus->c1")
+    expect(edgeIds).toContain("c1->gc1")
+    for (const e of result.edges.filter((e) => e.type === "descendant")) {
+      expect(e.path.startsWith("M ")).toBe(true)
+    }
+  })
+})

@@ -6,10 +6,13 @@ import type {
   Ring,
   OrbitalEdge,
   OrbitAncestorNode,
+  OrbitDescendantNode,
 } from "./orbitalTypes"
 import {
   ORBITAL_HEMISPHERE_TOP_START,
   ORBITAL_HEMISPHERE_TOP_END,
+  ORBITAL_HEMISPHERE_BOTTOM_START,
+  ORBITAL_HEMISPHERE_BOTTOM_END,
 } from "./orbitalConstants"
 import { polarToCartesian, ringRadius, radialArcPath } from "./orbitalGeometry"
 
@@ -119,6 +122,74 @@ export function computeOrbitalLayout(
         path,
       })
     }
+  }
+
+  // 5) Descendants — subtree-proportional fan in bottom hemisphere.
+  function leafCount(node: OrbitDescendantNode): number {
+    if (!node.children || node.children.length === 0) return 1
+    return node.children.reduce((sum, c) => sum + leafCount(c), 0)
+  }
+
+  function placeDescendants(
+    children: OrbitDescendantNode[],
+    parentId: string,
+    wedge: { start: number; end: number },
+    depth: number,
+  ): void {
+    if (children.length === 0) return
+    const r = ringRadius(depth + 1)
+    if (!rings.find((rg) => rg.generation === -(depth + 1))) {
+      rings.push({ generation: -(depth + 1), radius: r, hemisphere: "bottom" })
+    }
+    const totalLeaves = children.reduce((sum, c) => sum + leafCount(c), 0)
+    let cursor = wedge.start
+    for (const c of children) {
+      const share = (leafCount(c) / totalLeaves) * (wedge.end - wedge.start)
+      const childWedge = { start: cursor, end: cursor + share }
+      const angle = (childWedge.start + childWedge.end) / 2
+      const { x, y } = polarToCartesian(r, angle)
+      slots.push({
+        id: c.id,
+        personId: c.id,
+        ring: -(depth + 1),
+        angle,
+        x,
+        y,
+        branchKey: "descendant",
+        parentSlotId: parentId,
+        isSpouse: false,
+        isSibling: false,
+      })
+      placeDescendants(c.children ?? [], c.id, childWedge, depth + 1)
+      cursor += share
+    }
+  }
+
+  placeDescendants(
+    data.descendants ?? [],
+    data.focus.id,
+    { start: ORBITAL_HEMISPHERE_BOTTOM_START, end: ORBITAL_HEMISPHERE_BOTTOM_END },
+    0,
+  )
+
+  // 6) Descendant edges.
+  for (const slot of slots) {
+    if (slot.branchKey !== "descendant") continue
+    const parent = slots.find((s) => s.id === slot.parentSlotId)
+    if (!parent) continue
+    const rP = Math.hypot(parent.x, parent.y)
+    const rC = Math.hypot(slot.x, slot.y)
+    const thetaP = Math.atan2(parent.y, parent.x) || Math.PI / 2 // focus has no defined angle; use π/2
+    const thetaC = Math.atan2(slot.y, slot.x)
+    const inner = parent.ring === 0 ? { r: 0, t: thetaC } : { r: rP, t: thetaP }
+    const outer = { r: rC, t: thetaC }
+    edges.push({
+      id: `${parent.id}->${slot.id}`,
+      fromSlotId: parent.id,
+      toSlotId: slot.id,
+      type: "descendant",
+      path: radialArcPath(inner.r, inner.t, outer.r, outer.t),
+    })
   }
 
   // 4) Bounds (rough): max ring radius * 2 for each axis, padded.
