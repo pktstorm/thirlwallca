@@ -139,3 +139,63 @@ async def test_build_orbit_descendant_depth_limit(db):
     )
     assert len(result.descendants) == 1
     assert result.descendants[0].children == []
+
+
+@pytest.mark.anyio
+async def test_build_orbit_siblings(db):
+    from app.domain.models import Person, Relationship
+    from app.domain.enums import RelationshipType, Gender
+    from app.services.orbit_service import build_orbit
+
+    parent = Person(id=uuid4(), first_name="P", last_name="X", gender=Gender.MALE, is_living=True)
+    focus = Person(id=uuid4(), first_name="F", last_name="X", gender=Gender.MALE, is_living=True)
+    sib1 = Person(id=uuid4(), first_name="S1", last_name="X", gender=Gender.FEMALE, is_living=True)
+    sib2 = Person(id=uuid4(), first_name="S2", last_name="X", gender=Gender.MALE, is_living=True)
+    db.add_all([parent, focus, sib1, sib2])
+    db.add_all([
+        Relationship(person_id=focus.id, related_person_id=parent.id, relationship=RelationshipType.PARENT_CHILD),
+        Relationship(person_id=sib1.id, related_person_id=parent.id, relationship=RelationshipType.PARENT_CHILD),
+        Relationship(person_id=sib2.id, related_person_id=parent.id, relationship=RelationshipType.PARENT_CHILD),
+    ])
+    await db.flush()
+
+    result = await build_orbit(
+        db, person_id=focus.id, ancestor_depth=1, descendant_depth=0,
+        include_siblings=True, include_spouses=False,
+    )
+    sib_ids = {s.id for s in result.siblings}
+    assert sib_ids == {sib1.id, sib2.id}
+    assert focus.id not in sib_ids
+
+
+@pytest.mark.anyio
+async def test_build_orbit_spouses(db):
+    from app.domain.models import Person, Relationship
+    from app.domain.enums import RelationshipType, Gender
+    from app.services.orbit_service import build_orbit
+
+    focus = Person(id=uuid4(), first_name="F", last_name="X", gender=Gender.MALE, is_living=True)
+    spouse = Person(id=uuid4(), first_name="S", last_name="Y", gender=Gender.FEMALE, is_living=True)
+    child = Person(id=uuid4(), first_name="C", last_name="X", gender=Gender.MALE, is_living=True)
+    cspouse = Person(id=uuid4(), first_name="CS", last_name="Z", gender=Gender.FEMALE, is_living=True)
+    db.add_all([focus, spouse, child, cspouse])
+    db.add_all([
+        Relationship(person_id=focus.id, related_person_id=spouse.id, relationship=RelationshipType.SPOUSE),
+        Relationship(person_id=child.id, related_person_id=focus.id, relationship=RelationshipType.PARENT_CHILD),
+        Relationship(person_id=child.id, related_person_id=cspouse.id, relationship=RelationshipType.SPOUSE),
+    ])
+    await db.flush()
+
+    result = await build_orbit(
+        db, person_id=focus.id, ancestor_depth=0, descendant_depth=1,
+        include_siblings=False, include_spouses=True,
+    )
+    by_spouse = {(s.id, s.spouse_of) for s in result.spouses}
+    assert (spouse.id, focus.id) in by_spouse
+    assert (cspouse.id, child.id) in by_spouse
+    # When include_spouses=False the result should be empty:
+    result2 = await build_orbit(
+        db, person_id=focus.id, ancestor_depth=0, descendant_depth=1,
+        include_siblings=False, include_spouses=False,
+    )
+    assert result2.spouses == []

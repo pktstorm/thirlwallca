@@ -133,8 +133,15 @@ async def build_orbit(
     ancestors = await _walk_ancestors(db, person_id, ancestor_depth)
     descendants_visited: set[UUID] = {person_id}
     descendants = await _walk_descendants(db, person_id, descendants_visited, descendant_depth)
-    siblings: list[OrbitPersonRef] = []  # filled in later task
-    spouses: list[OrbitSpouseRef] = []  # filled in later task
+    siblings: list[OrbitPersonRef] = []
+    if include_siblings:
+        siblings = [_person_ref(p) for p in await _siblings_of(db, person_id)]
+
+    spouses: list[OrbitSpouseRef] = []
+    if include_spouses:
+        person_ids = [person_id] + _flatten_ancestor_ids(ancestors) + _flatten_descendant_ids(descendants)
+        pairs = await _spouses_of_ids(db, person_ids)
+        spouses = [OrbitSpouseRef(**_person_ref(p).model_dump(), spouse_of=partner_id) for p, partner_id in pairs]
 
     return OrbitResponse(
         focus=_person_ref(focus),
@@ -180,3 +187,73 @@ async def _walk_descendants(
             children=sub,
         ))
     return out
+
+
+async def _siblings_of(db: AsyncSession, focus_id: UUID) -> list[Person]:
+    """Return persons who share at least one parent with focus, excluding focus itself."""
+    parent_ids_stmt = select(Relationship.related_person_id).where(
+        Relationship.person_id == focus_id,
+        Relationship.relationship == RelationshipType.PARENT_CHILD,
+    )
+    parent_ids = list((await db.execute(parent_ids_stmt)).scalars().all())
+    if not parent_ids:
+        return []
+    stmt = (
+        select(Person)
+        .join(Relationship, Relationship.person_id == Person.id)
+        .where(
+            Relationship.related_person_id.in_(parent_ids),
+            Relationship.relationship == RelationshipType.PARENT_CHILD,
+            Person.id != focus_id,
+        )
+        .distinct()
+        .order_by(Person.birth_date.asc().nullslast(), Person.created_at.asc())
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def _spouses_of_ids(db: AsyncSession, person_ids: list[UUID]) -> list[tuple[Person, UUID]]:
+    """Return (spouse_person, partner_id) pairs for everyone in person_ids."""
+    if not person_ids:
+        return []
+    # SPOUSE relationship is symmetric in storage convention but stored once.
+    # Match either side.
+    stmt_a = (
+        select(Person, Relationship.person_id)
+        .join(Relationship, Relationship.related_person_id == Person.id)
+        .where(
+            Relationship.person_id.in_(person_ids),
+            Relationship.relationship == RelationshipType.SPOUSE,
+        )
+    )
+    stmt_b = (
+        select(Person, Relationship.related_person_id)
+        .join(Relationship, Relationship.person_id == Person.id)
+        .where(
+            Relationship.related_person_id.in_(person_ids),
+            Relationship.relationship == RelationshipType.SPOUSE,
+        )
+    )
+    rows_a = (await db.execute(stmt_a)).all()
+    rows_b = (await db.execute(stmt_b)).all()
+    out: list[tuple[Person, UUID]] = []
+    seen: set[tuple[UUID, UUID]] = set()
+    for person, partner_id in list(rows_a) + list(rows_b):
+        key = (person.id, partner_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((person, partner_id))
+    return out
+
+
+def _flatten_descendant_ids(nodes: list[OrbitDescendantNode]) -> list[UUID]:
+    out: list[UUID] = []
+    for n in nodes:
+        out.append(n.id)
+        out.extend(_flatten_descendant_ids(n.children))
+    return out
+
+
+def _flatten_ancestor_ids(generations: list[list[OrbitAncestorNode]]) -> list[UUID]:
+    return [a.id for gen in generations for a in gen]
