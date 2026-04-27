@@ -131,7 +131,8 @@ async def build_orbit(
         raise LookupError(f"Person {person_id} not found")
 
     ancestors = await _walk_ancestors(db, person_id, ancestor_depth)
-    descendants: list[OrbitDescendantNode] = []  # filled in next task
+    descendants_visited: set[UUID] = {person_id}
+    descendants = await _walk_descendants(db, person_id, descendants_visited, descendant_depth)
     siblings: list[OrbitPersonRef] = []  # filled in later task
     spouses: list[OrbitSpouseRef] = []  # filled in later task
 
@@ -142,3 +143,40 @@ async def build_orbit(
         siblings=siblings,
         spouses=spouses,
     )
+
+
+async def _children_of(db: AsyncSession, parent_id: UUID) -> list[Person]:
+    stmt = (
+        select(Person)
+        .join(Relationship, Relationship.person_id == Person.id)
+        .where(
+            Relationship.related_person_id == parent_id,
+            Relationship.relationship == RelationshipType.PARENT_CHILD,
+        )
+        .order_by(Person.birth_date.asc().nullslast(), Person.created_at.asc())
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def _walk_descendants(
+    db: AsyncSession,
+    parent_id: UUID,
+    visited: set[UUID],
+    remaining_depth: int,
+) -> list[OrbitDescendantNode]:
+    if remaining_depth <= 0:
+        return []
+    children = await _children_of(db, parent_id)
+    out: list[OrbitDescendantNode] = []
+    for c in children:
+        if c.id in visited:
+            raise ValueError(f"Loop detected: person {c.id} is its own descendant")
+        visited.add(c.id)
+        ref = _person_ref(c)
+        sub = await _walk_descendants(db, c.id, visited, remaining_depth - 1)
+        out.append(OrbitDescendantNode(
+            **ref.model_dump(),
+            parent_id=parent_id,
+            children=sub,
+        ))
+    return out

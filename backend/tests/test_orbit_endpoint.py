@@ -69,3 +69,73 @@ async def test_build_orbit_ancestors_two_generations(db):
     assert result.descendants == []
     assert result.siblings == []
     assert result.spouses == []
+
+
+@pytest.mark.anyio
+async def test_build_orbit_descendants_two_generations(db):
+    """Focus has 2 children, each with 2 children — verify nested descendant tree."""
+    from app.domain.models import Person, Relationship
+    from app.domain.enums import RelationshipType, Gender
+    from app.services.orbit_service import build_orbit
+
+    focus = Person(id=uuid4(), first_name="Focus", last_name="P", gender=Gender.MALE, is_living=True)
+    c1 = Person(id=uuid4(), first_name="Child1", last_name="P", gender=Gender.FEMALE, is_living=True)
+    c2 = Person(id=uuid4(), first_name="Child2", last_name="P", gender=Gender.MALE, is_living=True)
+    gc1a = Person(id=uuid4(), first_name="GC1a", last_name="P", gender=Gender.MALE, is_living=True)
+    gc1b = Person(id=uuid4(), first_name="GC1b", last_name="P", gender=Gender.FEMALE, is_living=True)
+    gc2a = Person(id=uuid4(), first_name="GC2a", last_name="P", gender=Gender.MALE, is_living=True)
+    gc2b = Person(id=uuid4(), first_name="GC2b", last_name="P", gender=Gender.FEMALE, is_living=True)
+    db.add_all([focus, c1, c2, gc1a, gc1b, gc2a, gc2b])
+
+    # parent_child: person_id=child, related_person_id=parent
+    db.add_all([
+        Relationship(person_id=c1.id, related_person_id=focus.id, relationship=RelationshipType.PARENT_CHILD),
+        Relationship(person_id=c2.id, related_person_id=focus.id, relationship=RelationshipType.PARENT_CHILD),
+        Relationship(person_id=gc1a.id, related_person_id=c1.id, relationship=RelationshipType.PARENT_CHILD),
+        Relationship(person_id=gc1b.id, related_person_id=c1.id, relationship=RelationshipType.PARENT_CHILD),
+        Relationship(person_id=gc2a.id, related_person_id=c2.id, relationship=RelationshipType.PARENT_CHILD),
+        Relationship(person_id=gc2b.id, related_person_id=c2.id, relationship=RelationshipType.PARENT_CHILD),
+    ])
+    await db.flush()
+
+    result = await build_orbit(
+        db, person_id=focus.id,
+        ancestor_depth=0, descendant_depth=2,
+        include_siblings=False, include_spouses=False,
+    )
+
+    assert result.ancestors_by_generation == []
+    assert len(result.descendants) == 2
+    by_id = {d.id: d for d in result.descendants}
+    assert by_id[c1.id].parent_id == focus.id
+    assert by_id[c2.id].parent_id == focus.id
+    assert len(by_id[c1.id].children) == 2
+    assert {gc.id for gc in by_id[c1.id].children} == {gc1a.id, gc1b.id}
+    for gc in by_id[c1.id].children:
+        assert gc.parent_id == c1.id
+        assert gc.children == []  # depth limit reached
+
+
+@pytest.mark.anyio
+async def test_build_orbit_descendant_depth_limit(db):
+    """descendant_depth=1 — only direct children, no grandchildren."""
+    from app.domain.models import Person, Relationship
+    from app.domain.enums import RelationshipType, Gender
+    from app.services.orbit_service import build_orbit
+
+    focus = Person(id=uuid4(), first_name="F", last_name="P", gender=Gender.MALE, is_living=True)
+    c = Person(id=uuid4(), first_name="C", last_name="P", gender=Gender.FEMALE, is_living=True)
+    gc = Person(id=uuid4(), first_name="GC", last_name="P", gender=Gender.MALE, is_living=True)
+    db.add_all([focus, c, gc])
+    db.add_all([
+        Relationship(person_id=c.id, related_person_id=focus.id, relationship=RelationshipType.PARENT_CHILD),
+        Relationship(person_id=gc.id, related_person_id=c.id, relationship=RelationshipType.PARENT_CHILD),
+    ])
+    await db.flush()
+
+    result = await build_orbit(
+        db, person_id=focus.id, ancestor_depth=0, descendant_depth=1,
+        include_siblings=False, include_spouses=False,
+    )
+    assert len(result.descendants) == 1
+    assert result.descendants[0].children == []
