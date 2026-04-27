@@ -199,3 +199,60 @@ async def test_build_orbit_spouses(db):
         include_siblings=False, include_spouses=False,
     )
     assert result2.spouses == []
+
+
+# ---------------------------------------------------------------------------
+# Endpoint tests (Task 5)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.anyio
+async def test_orbit_endpoint_returns_focus_and_ancestors(db, async_client, auth_headers):
+    """End-to-end: hit GET /api/v1/persons/{id}/orbit and verify shape."""
+    from app.domain.models import Person, Relationship
+    from app.domain.enums import RelationshipType, Gender
+
+    focus = Person(id=uuid4(), first_name="F", last_name="X", gender=Gender.MALE, is_living=True)
+    dad = Person(id=uuid4(), first_name="D", last_name="X", gender=Gender.MALE, is_living=True)
+    db.add_all([focus, dad])
+    db.add_all([
+        Relationship(person_id=focus.id, related_person_id=dad.id, relationship=RelationshipType.PARENT_CHILD),
+    ])
+    await db.commit()
+
+    resp = await async_client.get(
+        f"/api/v1/persons/{focus.id}/orbit",
+        params={"ancestor_depth": 1, "descendant_depth": 0},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["focus"]["id"] == str(focus.id)
+    assert len(body["ancestors_by_generation"]) == 1
+    assert len(body["ancestors_by_generation"][0]) == 1
+    assert body["ancestors_by_generation"][0][0]["id"] == str(dad.id)
+    assert body["ancestors_by_generation"][0][0]["parent_slot"] == "father"
+
+
+@pytest.mark.anyio
+async def test_orbit_endpoint_404_on_unknown_person(async_client, auth_headers):
+    resp = await async_client.get(
+        f"/api/v1/persons/{uuid4()}/orbit",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_orbit_endpoint_clamps_depth(db, async_client, auth_headers):
+    from app.domain.models import Person
+    from app.domain.enums import Gender
+    p = Person(id=uuid4(), first_name="X", last_name="Y", gender=Gender.MALE, is_living=True)
+    db.add(p)
+    await db.commit()
+    # Request depth 99 — service clamps to 10. We just verify it doesn't crash and returns 200.
+    resp = await async_client.get(
+        f"/api/v1/persons/{p.id}/orbit",
+        params={"ancestor_depth": 99, "descendant_depth": 99},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200

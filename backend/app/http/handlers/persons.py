@@ -377,3 +377,32 @@ async def profile_photo_confirm(
     await db.refresh(person)
 
     return await _build_person_response(person, db)
+
+
+from app.http.schemas.orbit import OrbitResponse
+from app.services.orbit_service import build_orbit
+
+
+@router.get("/{person_id}/orbit", response_model=OrbitResponse)
+async def get_person_orbit(
+    person_id: uuid.UUID,
+    ancestor_depth: int = 4,
+    descendant_depth: int = 3,
+    include_siblings: bool = False,
+    include_spouses: bool = False,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OrbitResponse:
+    try:
+        return await build_orbit(
+            db,
+            person_id=person_id,
+            ancestor_depth=ancestor_depth,
+            descendant_depth=descendant_depth,
+            include_siblings=include_siblings,
+            include_spouses=include_spouses,
+        )
+    except LookupError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Person not found")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

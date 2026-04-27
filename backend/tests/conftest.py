@@ -1,5 +1,7 @@
 import pytest
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from httpx import AsyncClient, ASGITransport
 from app.domain.models import Base
 
 
@@ -32,3 +34,47 @@ async def db():
         await session.rollback()
 
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def async_client(db):
+    """FastAPI async test client with DB and auth dependency overrides."""
+    from app.main import create_app
+    from app.deps import get_db
+    from app.auth.cognito import get_current_user
+    from app.domain.models import User
+    from app.domain.enums import UserRole
+    from uuid import uuid4
+
+    app = create_app()
+
+    # Override get_db to yield the test session
+    async def override_get_db():
+        yield db
+
+    # Override get_current_user to return a fake admin user
+    fake_user = User(
+        id=uuid4(),
+        cognito_sub="test-cognito-sub",
+        email="test@example.com",
+        display_name="Test User",
+        role=UserRole.ADMIN,
+        is_active=True,
+    )
+
+    async def override_get_current_user():
+        return fake_user
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth_headers():
+    """Empty headers — auth is bypassed via dependency_overrides in async_client."""
+    return {}
