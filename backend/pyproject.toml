@@ -25,6 +25,7 @@ pillow = "^12.2.0"
 pytest = "*"
 pytest-asyncio = "*"
 ruff = "*"
+aiosqlite = "^0.22.1"
 
 [build-system]
 requires = ["poetry-core"]
