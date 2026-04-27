@@ -251,3 +251,36 @@ describe("computeOrbitalLayout — spouses", () => {
     expect(r.slots.find((s) => s.personId === "w")).toBeUndefined()
   })
 })
+
+describe("density mode", () => {
+  it("flags ring as dense when slot arc < MIN_SLOT_ANGLE", () => {
+    // 8 generations -> 256 ancestors at deepest ring; 180° / 256 ≈ 0.7° each, well below 5°.
+    const gens: any[][] = []
+    let prev: string[] = ["focus"]
+    for (let g = 0; g < 8; g++) {
+      const layer: any[] = []
+      const next: string[] = []
+      for (const parentId of prev) {
+        const fid = `${parentId}-f-${g}`
+        const mid = `${parentId}-m-${g}`
+        layer.push({ ...person(fid, "male"), parentSlot: "father", parentId })
+        layer.push({ ...person(mid, "female"), parentSlot: "mother", parentId })
+        next.push(fid, mid)
+      }
+      gens.push(layer)
+      prev = next
+    }
+    const data: OrbitData = {
+      focus: person("focus"),
+      ancestorsByGeneration: gens,
+      descendants: [], siblings: [], spouses: [],
+    }
+    const result = computeOrbitalLayout(data, { ...baseOptions, ancestorDepth: 8 }, { width: 800, height: 600 })
+    // The deepest ring (generation 8) should be marked dense.
+    const deepRing = result.rings.find((r) => r.generation === 8)
+    expect(deepRing?.dense).toBe(true)
+    // The first ring (parents) should NOT be dense.
+    const firstRing = result.rings.find((r) => r.generation === 1)
+    expect(firstRing?.dense).toBeFalsy()
+  })
+})

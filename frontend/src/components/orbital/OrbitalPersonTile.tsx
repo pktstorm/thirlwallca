@@ -6,11 +6,14 @@ interface Props {
   person: OrbitalPersonRef
   options: ControlOptions
   isFocus: boolean
+  dense?: boolean
   onClick: () => void
   onDoubleClick: () => void
 }
 
-export function OrbitalPersonTile({ slot, person, options, isFocus, onClick, onDoubleClick }: Props) {
+export function OrbitalPersonTile({ slot, person, options, isFocus, dense = false, onClick, onDoubleClick }: Props) {
+  const effectiveSize = dense || !isFocus ? "compact" : "default"
+  const effectiveLabel = dense ? "none" : options.labelDensity
   return (
     <div
       style={{
@@ -33,8 +36,8 @@ export function OrbitalPersonTile({ slot, person, options, isFocus, onClick, onD
           photoUrl: person.photoUrl,
         }}
         showPhoto={options.showPhotos}
-        labelDensity={options.labelDensity}
-        size={isFocus ? "default" : "compact"}
+        labelDensity={effectiveLabel}
+        size={effectiveSize}
         livingDeceasedStyling={options.livingDeceasedStyling}
       />
     </div>

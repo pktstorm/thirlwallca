@@ -128,6 +128,7 @@ export function OrbitalCanvas({ focusPersonId }: Props) {
               person={person}
               options={options}
               isFocus={slot.personId === data.focus.id && !slot.isSpouse && !slot.isSibling}
+              dense={layout.rings.find((r) => r.generation === slot.ring)?.dense ?? false}
               onClick={() => handleClick(slot)}
               onDoubleClick={() => handleDoubleClick(slot)}
             />

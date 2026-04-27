@@ -56,6 +56,7 @@ export interface Ring {
   generation: number             // negative for descendants (-1, -2, ...), positive for ancestors (1, 2, ...), 0 for focus
   radius: number                 // in px in canvas coords
   hemisphere: Hemisphere
+  dense: boolean
 }
 
 export interface Slot {

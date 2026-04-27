@@ -15,6 +15,7 @@ import {
   ORBITAL_HEMISPHERE_BOTTOM_END,
   ORBITAL_SIBLING_RADIUS,
   ORBITAL_SPOUSE_OFFSET,
+  ORBITAL_MIN_SLOT_ANGLE_RAD,
 } from "./orbitalConstants"
 import { polarToCartesian, ringRadius, radialArcPath } from "./orbitalGeometry"
 
@@ -66,7 +67,7 @@ export function computeOrbitalLayout(
     const gen = generations[g]
     if (!gen) continue
     const r = ringRadius(g + 1)
-    rings.push({ generation: g + 1, radius: r, hemisphere: "top" })
+    rings.push({ generation: g + 1, radius: r, hemisphere: "top", dense: false })
 
     // Group ancestors by parentId so we can subdivide each parent's wedge.
     const byParent = new Map<string, OrbitAncestorNode[]>()
@@ -141,7 +142,7 @@ export function computeOrbitalLayout(
     if (children.length === 0) return
     const r = ringRadius(depth + 1)
     if (!rings.find((rg) => rg.generation === -(depth + 1))) {
-      rings.push({ generation: -(depth + 1), radius: r, hemisphere: "bottom" })
+      rings.push({ generation: -(depth + 1), radius: r, hemisphere: "bottom", dense: false })
     }
     const totalLeaves = children.reduce((sum, c) => sum + leafCount(c), 0)
     let cursor = wedge.start
@@ -239,6 +240,21 @@ export function computeOrbitalLayout(
         isSibling: false,
       })
     }
+  }
+
+  // 9) Density: a ring is dense if the mean angular gap between slots on that ring < threshold.
+  for (const ring of rings) {
+    const ringSlots = slots.filter((s) => s.ring === ring.generation && !s.isSpouse && !s.isSibling)
+    if (ringSlots.length <= 1) {
+      ring.dense = false
+      continue
+    }
+    const span =
+      ring.hemisphere === "top"
+        ? ORBITAL_HEMISPHERE_TOP_END - ORBITAL_HEMISPHERE_TOP_START
+        : ORBITAL_HEMISPHERE_BOTTOM_END - ORBITAL_HEMISPHERE_BOTTOM_START
+    const meanGap = span / ringSlots.length
+    ring.dense = meanGap < ORBITAL_MIN_SLOT_ANGLE_RAD
   }
 
   // 4) Bounds (rough): max ring radius * 2 for each axis, padded.
