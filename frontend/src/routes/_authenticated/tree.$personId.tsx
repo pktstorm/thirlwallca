@@ -12,6 +12,8 @@ import {
 import { PersonDetailPanel } from "../../components/tree/PersonDetailPanel"
 import { useTreeStore } from "../../stores/treeStore"
 import { useUiStore } from "../../stores/uiStore"
+import { OrbitalCanvas } from "../../components/orbital/OrbitalCanvas"
+import { OrbitalControlsPanel } from "../../components/orbital/OrbitalControlsPanel"
 
 export const Route = createFileRoute("/_authenticated/tree/$personId")({
   component: TreePersonPage,
@@ -26,6 +28,7 @@ function TreePersonPage() {
   const { personId } = Route.useParams()
   const focusedPersonId = useTreeStore((s) => s.focusedPersonId)
   const setFocusedPerson = useTreeStore((s) => s.setFocusedPerson)
+  const treeViewMode = useTreeStore((s) => s.treeViewMode)
   const detailPanelOpen = useUiStore((s) => s.detailPanelOpen)
   const toggleDetailPanel = useUiStore((s) => s.toggleDetailPanel)
 
@@ -41,6 +44,7 @@ function TreePersonPage() {
       const res = await api.get<TreeResponse>(`/tree/${personId}`)
       return res.data
     },
+    enabled: treeViewMode !== "orbital",
   })
 
   // Find focused person name for breadcrumbs
@@ -76,7 +80,7 @@ function TreePersonPage() {
       </div>
 
       {/* Canvas */}
-      {isLoading && (
+      {treeViewMode !== "orbital" && isLoading && (
         <div className="h-full w-full flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -85,7 +89,7 @@ function TreePersonPage() {
         </div>
       )}
 
-      {isError && (
+      {treeViewMode !== "orbital" && isError && (
         <div className="h-full w-full flex items-center justify-center">
           <div className="bg-white dark:bg-dark-card rounded-xl border border-sage-200 dark:border-dark-border shadow-sm dark:shadow-none px-6 py-4 max-w-md text-center">
             <p className="text-red-600 dark:text-red-400 font-medium mb-1">
@@ -98,12 +102,19 @@ function TreePersonPage() {
         </div>
       )}
 
-      {data && (
-        <FamilyTreeCanvas
-          nodes={data.nodes}
-          edges={data.edges}
-          focusPersonId={personId}
-        />
+      {treeViewMode === "orbital" ? (
+        <>
+          <OrbitalCanvas focusPersonId={personId} />
+          <OrbitalControlsPanel />
+        </>
+      ) : (
+        data && (
+          <FamilyTreeCanvas
+            nodes={data.nodes}
+            edges={data.edges}
+            focusPersonId={personId}
+          />
+        )
       )}
 
       {/* Person detail panel - right sidebar */}

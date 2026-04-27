@@ -18,6 +18,8 @@ import { GenerationFilter } from "../../components/tree/GenerationFilter"
 import { useTreeStore } from "../../stores/treeStore"
 import { useUiStore } from "../../stores/uiStore"
 import { useAuthStore } from "../../stores/authStore"
+import { OrbitalCanvas } from "../../components/orbital/OrbitalCanvas"
+import { OrbitalControlsPanel } from "../../components/orbital/OrbitalControlsPanel"
 
 export const Route = createFileRoute("/_authenticated/tree")({
   component: TreePage,
@@ -57,6 +59,7 @@ function TreePage() {
       return res.data
     },
     placeholderData: keepPreviousData,
+    enabled: treeViewMode !== "orbital",
   })
 
   // Reset expanded data when base data changes
@@ -181,7 +184,7 @@ function TreePage() {
       </div>
 
       {/* Canvas */}
-      {isLoading && !data && (
+      {treeViewMode !== "orbital" && isLoading && !data && (
         <div className="h-full w-full flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -190,7 +193,7 @@ function TreePage() {
         </div>
       )}
 
-      {isError && !data && (
+      {treeViewMode !== "orbital" && isError && !data && (
         <div className="h-full w-full flex items-center justify-center">
           <div className="bg-white dark:bg-dark-card rounded-xl border border-sage-200 dark:border-dark-border shadow-sm dark:shadow-none px-6 py-4 max-w-md text-center">
             <p className="text-red-600 dark:text-red-400 font-medium mb-1">
@@ -203,14 +206,34 @@ function TreePage() {
         </div>
       )}
 
-      {mergedData && (
-        <FamilyTreeCanvas
-          nodes={mergedData.nodes}
-          edges={mergedData.edges}
-          focusPersonId={effectiveBranchPersonId ?? undefined}
-          onExpand={handleExpand}
-          isExpanding={expandMutation.isPending}
-        />
+      {treeViewMode === "orbital" ? (
+        effectiveBranchPersonId ? (
+          <>
+            <OrbitalCanvas focusPersonId={effectiveBranchPersonId} />
+            <OrbitalControlsPanel />
+          </>
+        ) : (
+          <div className="h-full w-full flex items-center justify-center">
+            <div className="bg-white dark:bg-dark-card rounded-xl border border-sage-200 dark:border-dark-border shadow-sm dark:shadow-none px-6 py-4 max-w-md text-center">
+              <p className="text-earth-900 dark:text-dark-text font-medium mb-1">
+                Link your profile to a person
+              </p>
+              <p className="text-sage-400 dark:text-dark-text-muted text-sm">
+                The orbital view needs a focus person. Link your account to someone in the family tree to use it.
+              </p>
+            </div>
+          </div>
+        )
+      ) : (
+        mergedData && (
+          <FamilyTreeCanvas
+            nodes={mergedData.nodes}
+            edges={mergedData.edges}
+            focusPersonId={effectiveBranchPersonId ?? undefined}
+            onExpand={handleExpand}
+            isExpanding={expandMutation.isPending}
+          />
+        )
       )}
 
       {/* Person detail panel */}
@@ -224,7 +247,7 @@ function TreePage() {
       />
 
       {/* Time slider - desktop, generation filter - mobile */}
-      {mergedData && (
+      {mergedData && treeViewMode !== "orbital" && (
         <>
           {/* Desktop: time slider */}
           <div className="absolute bottom-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:bottom-6 z-30 pointer-events-auto hidden sm:block">
