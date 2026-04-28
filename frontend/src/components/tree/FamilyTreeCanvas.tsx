@@ -140,14 +140,18 @@ function computeLayout(
   })
 
   // Convert LayoutPosition map to UnitPosition map shape that buildReactFlowNodes accepts.
+  // layoutByLanes uses center-coords internally (its overlap/centering math is center-relative),
+  // but React Flow node positions are top-left. We shift by -width/2 and -height/2 here so the
+  // resulting unitPositions match the convention used by legacy layoutFamilyUnits.
   const unitPositions = new Map<string, UnitPosition>()
   for (const u of units) {
     const p = layoutPositions.get(u.id)
     if (!p) continue
+    const h = u.spouseId ? COUPLE_NODE_HEIGHT : PERSON_NODE_HEIGHT
     unitPositions.set(u.id, {
       unitId: u.id,
-      x: p.x,
-      y: p.y,
+      x: p.x - p.width / 2,
+      y: p.y - h / 2,
       width: p.width,
       compact: p.compact,
     })
@@ -157,32 +161,31 @@ function computeLayout(
   const baseEdges = buildReactFlowEdges(units, personToUnit)
 
   // Build obstacle boxes from positions + widths.
+  // unitPositions is now top-left, so the box is just (p.x, p.y, width, height).
   const obstacles: ObstacleBox[] = []
   for (const u of units) {
     const p = unitPositions.get(u.id)
     if (!p) continue
     const w = p.width
     const h = u.spouseId ? COUPLE_NODE_HEIGHT : PERSON_NODE_HEIGHT
-    obstacles.push({ unitId: u.id, x: p.x - w / 2, y: p.y - h / 2, width: w, height: h })
+    obstacles.push({ unitId: u.id, x: p.x, y: p.y, width: w, height: h })
   }
 
   // Build EdgeRouteInputs from React Flow edges.
+  // Source: bottom-center of source unit. Target: top-center of target unit.
   const routerInputs: EdgeRouteInput[] = baseEdges
     .map((e) => {
       const sourceUnit = unitPositions.get(e.source)
       const targetUnit = unitPositions.get(e.target)
       if (!sourceUnit || !targetUnit) return null
       const sourceUnitData = units.find((u) => u.id === e.source)
-      const targetUnitData = units.find((u) => u.id === e.target)
       const sourceH = sourceUnitData?.spouseId ? COUPLE_NODE_HEIGHT : PERSON_NODE_HEIGHT
-      const targetH = targetUnitData?.spouseId ? COUPLE_NODE_HEIGHT : PERSON_NODE_HEIGHT
       return {
         id: e.id,
         sourceUnitId: e.source,
         targetUnitId: e.target,
-        // Source: bottom-center of source unit. Target: top-center of target unit.
-        source: { x: sourceUnit.x, y: sourceUnit.y + sourceH / 2 },
-        target: { x: targetUnit.x, y: targetUnit.y - targetH / 2 },
+        source: { x: sourceUnit.x + sourceUnit.width / 2, y: sourceUnit.y + sourceH },
+        target: { x: targetUnit.x + targetUnit.width / 2, y: targetUnit.y },
       }
     })
     .filter((x): x is EdgeRouteInput => x !== null)
