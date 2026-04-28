@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sliders, X, RotateCcw } from "lucide-react"
 import { useTreeDisplayStore } from "../../stores/treeDisplayStore"
 import type { LabelDensity } from "../orbital/orbitalTypes"
@@ -6,6 +6,34 @@ import type { LabelDensity } from "../orbital/orbitalTypes"
 export function TreeDisplayControls() {
   const [open, setOpen] = useState(false)
   const d = useTreeDisplayStore()
+
+  const [useLegacy, setUseLegacy] = useState(() => {
+    try {
+      return localStorage.getItem("useLegacyLayout") === "true"
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      if (useLegacy) {
+        const current = localStorage.getItem("useLegacyLayout")
+        if (current !== "true") {
+          localStorage.setItem("useLegacyLayout", "true")
+          setTimeout(() => window.location.reload(), 100)
+        }
+      } else {
+        const current = localStorage.getItem("useLegacyLayout")
+        if (current === "true") {
+          localStorage.removeItem("useLegacyLayout")
+          setTimeout(() => window.location.reload(), 100)
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [useLegacy])
 
   if (!open) {
     return (
@@ -49,6 +77,14 @@ export function TreeDisplayControls() {
             <span>{v === "none" ? "None" : v === "names" ? "Names" : "Names + dates"}</span>
           </label>
         ))}
+      </section>
+      <section className="px-4 py-3 space-y-2 border-b border-sage-200 dark:border-dark-border">
+        <div className="text-xs uppercase tracking-wide text-sage-500">Advanced</div>
+        <label className="flex items-center justify-between text-sm cursor-pointer">
+          <span>Use classic layout</span>
+          <input type="checkbox" checked={useLegacy} onChange={(e) => setUseLegacy(e.target.checked)} />
+        </label>
+        <p className="text-[10px] text-sage-500">Reverts to the previous tree layout. Requires a page reload.</p>
       </section>
       <footer className="px-4 py-3">
         <button className="text-xs text-sage-500 flex items-center gap-1" onClick={() => d.reset()}>
