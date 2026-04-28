@@ -21,7 +21,12 @@ const ZOOM_STEP = 1.2  // multiplier per zoom-button click
 const WHEEL_ZOOM_FACTOR = 0.0015  // sensitivity of wheel zoom
 
 export function OrbitalCanvas({ focusPersonId }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null)
+  // Container DOM node is tracked via state (not a plain ref) so effects re-run when it mounts.
+  // The component has early returns for the loading/error/no-data branches, which means the
+  // ref-attached div doesn't exist on the first render — a classic "useEffect with [] deps and
+  // ref.current is null" bug. Using a setState-backed ref makes the wheel listener and resize
+  // observer attach correctly when the canvas div first appears.
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null)
   const [viewport, setViewport] = useState({ width: 800, height: 600 })
   const [transform, setTransform] = useState({ panX: 0, panY: 0, zoom: 1 })
   const dragStateRef = useRef<{
@@ -62,15 +67,15 @@ export function OrbitalCanvas({ focusPersonId }: Props) {
   })
 
   useEffect(() => {
-    if (!containerRef.current) return
+    if (!containerEl) return
     const ro = new ResizeObserver((entries) => {
       const e = entries[0]
       if (!e) return
       setViewport({ width: e.contentRect.width, height: e.contentRect.height })
     })
-    ro.observe(containerRef.current)
+    ro.observe(containerEl)
     return () => ro.disconnect()
-  }, [])
+  }, [containerEl])
 
   // Reset pan/zoom when the focus person changes — the orbit recomputes around a new center.
   useEffect(() => {
@@ -95,11 +100,10 @@ export function OrbitalCanvas({ focusPersonId }: Props) {
   // warning). Without preventDefault(), the page would also scroll when wheeling inside the
   // canvas.
   useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
+    if (!containerEl) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      const rect = el.getBoundingClientRect()
+      const rect = containerEl.getBoundingClientRect()
       const cursorX = e.clientX - rect.left - rect.width / 2
       const cursorY = e.clientY - rect.top - rect.height / 2
       setTransform((t) => {
@@ -117,9 +121,9 @@ export function OrbitalCanvas({ focusPersonId }: Props) {
         }
       })
     }
-    el.addEventListener("wheel", onWheel, { passive: false })
-    return () => el.removeEventListener("wheel", onWheel)
-  }, [])
+    containerEl.addEventListener("wheel", onWheel, { passive: false })
+    return () => containerEl.removeEventListener("wheel", onWheel)
+  }, [containerEl])
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -203,7 +207,7 @@ export function OrbitalCanvas({ focusPersonId }: Props) {
 
   return (
     <div
-      ref={containerRef}
+      ref={setContainerEl}
       className="relative w-full h-full overflow-hidden text-earth-900 dark:text-dark-text select-none"
       style={{ cursor: isDragging ? "grabbing" : "grab" }}
       onMouseDown={handleMouseDown}
