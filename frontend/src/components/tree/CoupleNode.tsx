@@ -1,10 +1,12 @@
 import { memo } from "react"
 import { Handle, Position, useStore, type NodeProps } from "@xyflow/react"
+import { ChevronUp, ChevronDown } from "lucide-react"
 import { cn } from "../../lib/utils"
 import { useTreeStore } from "../../stores/treeStore"
 import { useAuthStore } from "../../stores/authStore"
 import type { CoupleNodeData } from "./layoutUtils"
 import type { TreeNodeData } from "./FamilyTreeCanvas"
+import { SPOUSE_GEN_OFFSET_PX } from "./treeLayoutConstants"
 
 function formatDateRange(
   birthDate: string | null,
@@ -116,17 +118,38 @@ function OverviewView({ data }: { data: CoupleNodeData }) {
         isFocused={focusedPersonId === data.primaryId}
         isCurrentUser={linkedPersonId === data.primaryId}
       />
-      {data.spouse && (
-        <>
-          <div className="w-px h-4 bg-sage-200 dark:bg-dark-border flex-shrink-0" />
-          <OverviewPill
-            person={data.spouse}
-            isDirectLine={data.spouseIsDirectLine ?? false}
-            isFocused={focusedPersonId === data.spouseId}
-            isCurrentUser={linkedPersonId === data.spouseId}
-          />
-        </>
-      )}
+      {data.spouse && (() => {
+        const offset = data.spouseGenOffset ?? 0
+        return (
+          <>
+            <div className="w-px h-4 bg-sage-200 dark:bg-dark-border flex-shrink-0" />
+            <div
+              style={{ transform: `translateY(${offset * SPOUSE_GEN_OFFSET_PX}px)` }}
+              className="relative"
+            >
+              <OverviewPill
+                person={data.spouse}
+                isDirectLine={data.spouseIsDirectLine ?? false}
+                isFocused={focusedPersonId === data.spouseId}
+                isCurrentUser={linkedPersonId === data.spouseId}
+              />
+              {offset !== 0 && (
+                <div
+                  className="absolute -top-2 -right-2 z-10 flex items-center gap-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-[9px] font-semibold px-1 py-px rounded-full border border-amber-200 dark:border-amber-800 shadow-sm"
+                  title={
+                    offset > 0
+                      ? `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} younger`
+                      : `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} older`
+                  }
+                >
+                  {offset > 0 ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronUp className="w-2.5 h-2.5" />}
+                  <span>{offset > 0 ? `+${offset}G` : `${offset}G`}</span>
+                </div>
+              )}
+            </div>
+          </>
+        )
+      })()}
       <Handle type="target" position={Position.Top} id="pc-target" className="!w-0 !h-0 !bg-transparent !border-0 !min-w-0 !min-h-0" />
       <Handle type="source" position={Position.Bottom} id="pc-source" className="!w-0 !h-0 !bg-transparent !border-0 !min-w-0 !min-h-0" />
     </div>
@@ -232,21 +255,42 @@ function DetailView({ data }: { data: CoupleNodeData }) {
         isFocused={focusedPersonId === data.primaryId}
         isCurrentUser={linkedPersonId === data.primaryId}
       />
-      {data.spouse && (
-        <>
-          {/* Marriage separator: double line */}
-          <div className="flex flex-col items-center justify-center gap-[2px] flex-shrink-0 px-0.5">
-            <div className="w-[2px] h-4 bg-sage-300 dark:bg-dark-border rounded-full" />
-            <div className="w-[2px] h-4 bg-sage-300 dark:bg-dark-border rounded-full" />
-          </div>
-          <DetailPerson
-            person={data.spouse}
-            isDirectLine={data.spouseIsDirectLine ?? false}
-            isFocused={focusedPersonId === data.spouseId}
-            isCurrentUser={linkedPersonId === data.spouseId}
-          />
-        </>
-      )}
+      {data.spouse && (() => {
+        const offset = data.spouseGenOffset ?? 0
+        return (
+          <>
+            {/* Marriage separator: double line */}
+            <div className="flex flex-col items-center justify-center gap-[2px] flex-shrink-0 px-0.5">
+              <div className="w-[2px] h-4 bg-sage-300 dark:bg-dark-border rounded-full" />
+              <div className="w-[2px] h-4 bg-sage-300 dark:bg-dark-border rounded-full" />
+            </div>
+            <div
+              style={{ transform: `translateY(${offset * SPOUSE_GEN_OFFSET_PX}px)` }}
+              className="relative flex-1 min-w-0"
+            >
+              <DetailPerson
+                person={data.spouse}
+                isDirectLine={data.spouseIsDirectLine ?? false}
+                isFocused={focusedPersonId === data.spouseId}
+                isCurrentUser={linkedPersonId === data.spouseId}
+              />
+              {offset !== 0 && (
+                <div
+                  className="absolute -top-2 -right-2 z-10 flex items-center gap-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-[9px] font-semibold px-1 py-px rounded-full border border-amber-200 dark:border-amber-800 shadow-sm"
+                  title={
+                    offset > 0
+                      ? `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} younger`
+                      : `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} older`
+                  }
+                >
+                  {offset > 0 ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronUp className="w-2.5 h-2.5" />}
+                  <span>{offset > 0 ? `+${offset}G` : `${offset}G`}</span>
+                </div>
+              )}
+            </div>
+          </>
+        )
+      })()}
       <Handle
         type="target"
         position={Position.Top}

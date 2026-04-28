@@ -37,6 +37,9 @@ export interface CoupleNodeData extends Record<string, unknown> {
   spouseIsDirectLine?: boolean
   primaryIsFocused?: boolean
   spouseIsFocused?: boolean
+  /** Visual Y-offset (in generations) for the spouse — comes from FamilyUnit.spouseGenOffset.
+   *  Zero means no offset. Nonzero means render the spouse shifted vertically. */
+  spouseGenOffset?: number
 }
 
 export type CoupleNode = Node<CoupleNodeData, "coupleNode">
@@ -643,6 +646,7 @@ export function buildReactFlowNodes(
         spouseIsDirectLine: false,
         primaryIsFocused: false,
         spouseIsFocused: false,
+        spouseGenOffset: unit.spouseGenOffset,
       },
       style: {
         width: pos.width,
