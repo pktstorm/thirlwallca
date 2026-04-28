@@ -84,4 +84,25 @@ describe("buildFamilyUnits — spouseGenOffset", () => {
     const solo = units.find((u) => u.primaryId === "solo")!
     expect(solo.spouseGenOffset).toBe(0)
   })
+
+  it("returns 0 when one spouse has no recorded ancestry (married-in)", () => {
+    // p1 has parents in the tree (gen 1); p2 has no parents recorded — they married in.
+    // Without the hasRecordedAncestry check, p2's gen would default to 0 and the offset would
+    // incorrectly compute as primaryGen - 0 = -1, displaying a spurious "-1G" badge for every
+    // married-in spouse.
+    const nodes = [person("gp"), person("p1", "male"), person("p2", "female")]
+    const edges = [pcEdge("gp", "p1"), spouseEdge("p1", "p2")]
+    const { units } = buildFamilyUnits(nodes, edges)
+    const couple = units.find((u) => u.spouseId !== null)!
+    expect(couple.spouseGenOffset).toBe(0)
+  })
+
+  it("returns 0 when both spouses lack recorded ancestry (root couple)", () => {
+    // Both p1 and p2 are roots (no parents in the data).
+    const nodes = [person("p1", "male"), person("p2", "female")]
+    const edges = [spouseEdge("p1", "p2")]
+    const { units } = buildFamilyUnits(nodes, edges)
+    const couple = units.find((u) => u.spouseId !== null)!
+    expect(couple.spouseGenOffset).toBe(0)
+  })
 })

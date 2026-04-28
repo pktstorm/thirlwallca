@@ -119,8 +119,20 @@ export function buildFamilyUnits(
   // This uses only parent-child edges so each person gets their own longest-path depth.
   const rawGenMap = computeRawGenerations(nodes, edges)
 
+  // A person has recorded ancestry if they appear as the target of at least one parent_child edge.
+  // Without this check, spouses who married into the family (no parents recorded) all collapse
+  // to gen 0 in rawGenMap, producing a spurious negative offset against their partner whose
+  // ancestry is recorded — resulting in every married-in spouse displaying a "-3G" clamp value.
+  const hasRecordedAncestry = new Set<string>()
+  for (const e of edges) {
+    if (e.type === "parent_child") hasRecordedAncestry.add(e.target)
+  }
+
   function computeSpouseGenOffset(primaryId: string, spouseId: string | null): number {
     if (!spouseId) return 0
+    // Only compare generations when BOTH spouses have traced ancestry; otherwise the gen-0
+    // default for a married-in spouse produces a misleading offset.
+    if (!hasRecordedAncestry.has(primaryId) || !hasRecordedAncestry.has(spouseId)) return 0
     const primaryGen = rawGenMap.get(primaryId)
     const spouseGen = rawGenMap.get(spouseId)
     if (primaryGen === undefined || spouseGen === undefined) return 0
