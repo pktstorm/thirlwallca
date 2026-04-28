@@ -4,6 +4,7 @@ import {
   Background,
   MiniMap,
   useReactFlow,
+  useViewport,
   useNodesState,
   useEdgesState,
   type NodeMouseHandler,
@@ -76,11 +77,26 @@ interface FamilyTreeCanvasProps {
 
 // --- Generation label node component ---
 
-function GenerationLabelNode({ data }: { data: { label: string } }) {
+function GenerationLabelNode({ data }: { data: { label: string; targetY: number } }) {
+  const { setCenter, getViewport } = useReactFlow()
+  const viewport = useViewport()
+  const active = Math.abs(viewport.y - data.targetY) < 50
+
   return (
-    <div className="text-sage-300/60 dark:text-dark-text-muted/30 text-[10px] font-bold uppercase tracking-[0.2em] select-none pointer-events-none whitespace-nowrap">
+    <button
+      onClick={() => {
+        const { zoom } = getViewport()
+        setCenter(0, data.targetY, { zoom, duration: 400 })
+      }}
+      className={[
+        "min-h-[40px] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] select-none whitespace-nowrap rounded transition-colors cursor-pointer",
+        active
+          ? "bg-primary/10 text-primary-dark dark:text-primary"
+          : "text-sage-300/60 dark:text-dark-text-muted/30 hover:bg-sage-50 dark:hover:bg-dark-surface",
+      ].join(" ")}
+    >
       {data.label}
-    </div>
+    </button>
   )
 }
 
@@ -326,7 +342,7 @@ function FamilyTreeCanvasInner({
         id: `gen-label-${tierY}`,
         type: "generationLabel" as const,
         position: { x: minX - 100, y: tierY + nodeHeight / 2 - 8 },
-        data: { label: `Gen ${gen + 1}` },
+        data: { label: `Gen ${gen + 1}`, targetY: tierY },
         selectable: false,
         draggable: false,
         connectable: false,
