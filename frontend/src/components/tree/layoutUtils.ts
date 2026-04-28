@@ -64,6 +64,9 @@ export interface FamilyUnit {
   childIds: string[]
   /** Generation level (0 = root) */
   generation: number
+  /** Visual Y-offset for spouse within the couple node, in generations.
+   *  Clamped to [-3, +3]. Zero means no offset (the common case). */
+  spouseGenOffset: number
 }
 
 /**
@@ -104,6 +107,19 @@ export function buildFamilyUnits(
 
   // Compute generations using union-find for spouse contraction + longest path
   const generationMap = computeGenerations(nodes, edges)
+
+  // Compute individual (non-contracted) generations for spouse offset calculation.
+  // This uses only parent-child edges so each person gets their own longest-path depth.
+  const rawGenMap = computeRawGenerations(nodes, edges)
+
+  function computeSpouseGenOffset(primaryId: string, spouseId: string | null): number {
+    if (!spouseId) return 0
+    const primaryGen = rawGenMap.get(primaryId)
+    const spouseGen = rawGenMap.get(spouseId)
+    if (primaryGen === undefined || spouseGen === undefined) return 0
+    const raw = spouseGen - primaryGen
+    return Math.max(-3, Math.min(3, raw))
+  }
 
   // Build family units by finding couples that share children
   const units: FamilyUnit[] = []
@@ -153,6 +169,7 @@ export function buildFamilyUnits(
       spouseId: spouse,
       childIds: [...allChildren].sort(),
       generation: gen,
+      spouseGenOffset: computeSpouseGenOffset(primary, spouse),
     })
 
     usedAsPrimary.add(primary)
@@ -180,6 +197,7 @@ export function buildFamilyUnits(
       spouseId: null,
       childIds: unassigned.sort(),
       generation: gen,
+      spouseGenOffset: 0,
     })
     usedAsPrimary.add(parentId)
     for (const c of unassigned) assignedChildren.add(c)
@@ -201,6 +219,7 @@ export function buildFamilyUnits(
       spouseId: spouse,
       childIds: [],
       generation: gen,
+      spouseGenOffset: computeSpouseGenOffset(primary, spouse),
     })
     usedAsPrimary.add(primary)
     usedAsSpouse.add(spouse)
@@ -217,6 +236,7 @@ export function buildFamilyUnits(
       spouseId: null,
       childIds: [],
       generation: gen,
+      spouseGenOffset: 0,
     })
     usedAsPrimary.add(node.id)
   }
@@ -309,6 +329,62 @@ function computeGenerations(
   const gen = new Map<string, number>()
   for (const id of nodeIds) {
     gen.set(id, superGen.get(find(id)) ?? 0)
+  }
+
+  // Normalize to 0
+  let minG = Infinity
+  for (const g of gen.values()) if (g < minG) minG = g
+  if (minG > 0) for (const id of nodeIds) gen.set(id, gen.get(id)! - minG)
+
+  return gen
+}
+
+/**
+ * Compute individual generation depths using only parent-child edges (no spouse contraction).
+ * Each person gets the longest path from any root to themselves.
+ * Used to calculate spouseGenOffset where per-person depth matters.
+ */
+function computeRawGenerations(
+  nodes: ApiTreeNode[],
+  edges: ApiTreeEdge[],
+): Map<string, number> {
+  const nodeIds = nodes.map((n) => n.id)
+  const parentChildEdges = edges.filter((e) => e.type === "parent_child")
+
+  const children = new Map<string, Set<string>>()
+  const inDeg = new Map<string, number>()
+
+  for (const id of nodeIds) {
+    children.set(id, new Set())
+    inDeg.set(id, 0)
+  }
+
+  for (const e of parentChildEdges) {
+    if (!children.has(e.source) || !children.has(e.target)) continue
+    if (!children.get(e.source)!.has(e.target)) {
+      children.get(e.source)!.add(e.target)
+      inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1)
+    }
+  }
+
+  // Kahn's longest-path topological sort
+  const gen = new Map<string, number>()
+  const queue: string[] = []
+  for (const id of nodeIds) {
+    gen.set(id, 0)
+    if ((inDeg.get(id) ?? 0) === 0) queue.push(id)
+  }
+
+  let qi = 0
+  while (qi < queue.length) {
+    const cur = queue[qi++]!
+    const curG = gen.get(cur)!
+    for (const child of children.get(cur) ?? []) {
+      gen.set(child, Math.max(gen.get(child)!, curG + 1))
+      const rem = (inDeg.get(child) ?? 0) - 1
+      inDeg.set(child, rem)
+      if (rem === 0) queue.push(child)
+    }
   }
 
   // Normalize to 0
