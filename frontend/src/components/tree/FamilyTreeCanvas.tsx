@@ -30,7 +30,11 @@ import {
   type CoupleNode,
   type TreeEdge,
   type FamilyUnit,
+  type UnitPosition,
 } from "./layoutUtils"
+import { layoutByLanes } from "./layoutSugiyama"
+import { routeEdges, type EdgeRouteInput, type ObstacleBox } from "./edgeRouter"
+import { classifyBranchSides } from "./branchSide"
 
 // --- Types ---
 
@@ -104,11 +108,97 @@ interface LayoutResult {
 function computeLayout(
   apiNodes: ApiTreeNode[],
   apiEdges: ApiTreeEdge[],
+  options: { focusPersonId: string | null; useLanes: boolean },
 ): LayoutResult {
+  const useLegacy = (() => {
+    try {
+      return localStorage.getItem("useLegacyLayout") === "true"
+    } catch {
+      return false
+    }
+  })()
+
   const { units, personToUnit, generationMap } = buildFamilyUnits(apiNodes, apiEdges)
-  const positions = layoutFamilyUnits(units, personToUnit)
-  const nodes = buildReactFlowNodes(units, positions, apiNodes)
-  const edges = buildReactFlowEdges(units, personToUnit)
+
+  if (useLegacy) {
+    const positions = layoutFamilyUnits(units, personToUnit)
+    const nodes = buildReactFlowNodes(units, positions, apiNodes)
+    const edges = buildReactFlowEdges(units, personToUnit)
+    return { nodes, edges, generationMap, units, personToUnit }
+  }
+
+  // New pipeline.
+  const branchSides = classifyBranchSides(apiEdges, options.focusPersonId, {
+    getGender: (id) => {
+      const node = apiNodes.find((n) => n.id === id)
+      return node?.data.gender ?? null
+    },
+  })
+  const { positions: layoutPositions } = layoutByLanes(units, personToUnit, {
+    branchSides,
+    useLanes: options.useLanes,
+  })
+
+  // Convert LayoutPosition map to UnitPosition map shape that buildReactFlowNodes accepts.
+  const unitPositions = new Map<string, UnitPosition>()
+  for (const u of units) {
+    const p = layoutPositions.get(u.id)
+    if (!p) continue
+    unitPositions.set(u.id, {
+      unitId: u.id,
+      x: p.x,
+      y: p.y,
+      width: p.width,
+      compact: p.compact,
+    })
+  }
+
+  const nodes = buildReactFlowNodes(units, unitPositions, apiNodes)
+  const baseEdges = buildReactFlowEdges(units, personToUnit)
+
+  // Build obstacle boxes from positions + widths.
+  const obstacles: ObstacleBox[] = []
+  for (const u of units) {
+    const p = unitPositions.get(u.id)
+    if (!p) continue
+    const w = p.width
+    const h = u.spouseId ? COUPLE_NODE_HEIGHT : PERSON_NODE_HEIGHT
+    obstacles.push({ unitId: u.id, x: p.x - w / 2, y: p.y - h / 2, width: w, height: h })
+  }
+
+  // Build EdgeRouteInputs from React Flow edges.
+  const routerInputs: EdgeRouteInput[] = baseEdges
+    .map((e) => {
+      const sourceUnit = unitPositions.get(e.source)
+      const targetUnit = unitPositions.get(e.target)
+      if (!sourceUnit || !targetUnit) return null
+      const sourceUnitData = units.find((u) => u.id === e.source)
+      const targetUnitData = units.find((u) => u.id === e.target)
+      const sourceH = sourceUnitData?.spouseId ? COUPLE_NODE_HEIGHT : PERSON_NODE_HEIGHT
+      const targetH = targetUnitData?.spouseId ? COUPLE_NODE_HEIGHT : PERSON_NODE_HEIGHT
+      return {
+        id: e.id,
+        sourceUnitId: e.source,
+        targetUnitId: e.target,
+        // Source: bottom-center of source unit. Target: top-center of target unit.
+        source: { x: sourceUnit.x, y: sourceUnit.y + sourceH / 2 },
+        target: { x: targetUnit.x, y: targetUnit.y - targetH / 2 },
+      }
+    })
+    .filter((x): x is EdgeRouteInput => x !== null)
+
+  const routedPaths = routeEdges(routerInputs, obstacles)
+  // Attach paths to edges' data.
+  const edges = baseEdges.map((e) => ({
+    ...e,
+    data: {
+      isDirectLine: e.data?.isDirectLine,
+      childNodeIds: e.data?.childNodeIds ?? [],
+      parentNodeId: e.data?.parentNodeId ?? "",
+      path: routedPaths.get(e.id) ?? undefined,
+    },
+  }))
+
   return { nodes, edges, generationMap, units, personToUnit }
 }
 
@@ -132,6 +222,7 @@ function FamilyTreeCanvasInner({
   const timeFilter = useTreeStore((s) => s.timeFilter)
   const pendingCenterPersonId = useTreeStore((s) => s.pendingCenterPersonId)
   const setPendingCenterPersonId = useTreeStore((s) => s.setPendingCenterPersonId)
+  const treeViewMode = useTreeStore((s) => s.treeViewMode)
 
   const [nodes, setNodes, onNodesChange] = useNodesState<CoupleNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<TreeEdge>([])
@@ -188,14 +279,17 @@ function FamilyTreeCanvasInner({
 
     setLayoutReady(false)
 
-    const result = computeLayout(apiNodes, apiEdges)
+    const result = computeLayout(apiNodes, apiEdges, {
+      focusPersonId: focusPersonId ?? null,
+      useLanes: treeViewMode === "branch",
+    })
     setNodes(result.nodes)
     setEdges(result.edges)
     setGenerationMap(result.generationMap)
     setPersonToUnit(result.personToUnit)
     setUnits(result.units)
     setLayoutReady(true)
-  }, [apiNodes, apiEdges, setNodes, setEdges])
+  }, [apiNodes, apiEdges, focusPersonId, treeViewMode, setNodes, setEdges])
 
   // Build generation label nodes
   const generationLabelNodes = useMemo(() => {

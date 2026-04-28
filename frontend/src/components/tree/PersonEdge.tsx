@@ -4,14 +4,16 @@ interface EdgeData {
   isDirectLine?: boolean
   childNodeIds?: string[]
   parentNodeId?: string
+  /** Precomputed orthogonal path from edgeRouter (Task 7). */
+  path?: string
   [key: string]: unknown
 }
 
 const CORNER_RADIUS = 8
 
 /**
- * Parent-child edge with shared trunk rendering.
- * Draws: parent → vertical drop → (optional horizontal bar) → vertical drop → child
+ * Parent-child edge. If `data.path` is precomputed (new pipeline), render it directly.
+ * Otherwise fall back to the legacy bezier (legacy pipeline).
  */
 export function ParentChildEdge({
   id,
@@ -23,26 +25,29 @@ export function ParentChildEdge({
 }: EdgeProps) {
   const edgeData = data as EdgeData | undefined
   const isDirectLine = edgeData?.isDirectLine ?? false
-
-  const midY = sourceY + (targetY - sourceY) / 2
-  const dx = targetX - sourceX
+  const precomputedPath = edgeData?.path
 
   let edgePath: string
-  if (Math.abs(dx) < 1) {
-    // Straight vertical line
-    edgePath = `M ${sourceX} ${sourceY} V ${targetY}`
+  if (precomputedPath) {
+    edgePath = precomputedPath
   } else {
-    const r = Math.min(CORNER_RADIUS, Math.abs(dx) / 2, Math.abs(midY - sourceY), Math.abs(targetY - midY))
-    const dirX = dx > 0 ? 1 : -1
-
-    edgePath = [
-      `M ${sourceX} ${sourceY}`,
-      `V ${midY - r}`,
-      `Q ${sourceX} ${midY}, ${sourceX + r * dirX} ${midY}`,
-      `H ${targetX - r * dirX}`,
-      `Q ${targetX} ${midY}, ${targetX} ${midY + r}`,
-      `V ${targetY}`,
-    ].join(" ")
+    // Legacy bezier (preserved bit-for-bit for useLegacyLayout flag).
+    const midY = sourceY + (targetY - sourceY) / 2
+    const dx = targetX - sourceX
+    if (Math.abs(dx) < 1) {
+      edgePath = `M ${sourceX} ${sourceY} V ${targetY}`
+    } else {
+      const r = Math.min(CORNER_RADIUS, Math.abs(dx) / 2, Math.abs(midY - sourceY), Math.abs(targetY - midY))
+      const dirX = dx > 0 ? 1 : -1
+      edgePath = [
+        `M ${sourceX} ${sourceY}`,
+        `V ${midY - r}`,
+        `Q ${sourceX} ${midY}, ${sourceX + r * dirX} ${midY}`,
+        `H ${targetX - r * dirX}`,
+        `Q ${targetX} ${midY}, ${targetX} ${midY + r}`,
+        `V ${targetY}`,
+      ].join(" ")
+    }
   }
 
   const strokeColor = isDirectLine ? "#30e86e" : "#c5d6cb"

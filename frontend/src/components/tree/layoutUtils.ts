@@ -40,6 +40,8 @@ export interface CoupleNodeData extends Record<string, unknown> {
   /** Visual Y-offset (in generations) for the spouse — comes from FamilyUnit.spouseGenOffset.
    *  Zero means no offset. Nonzero means render the spouse shifted vertically. */
   spouseGenOffset?: number
+  /** Render in compact size (new pipeline: many siblings). */
+  compact?: boolean
 }
 
 export type CoupleNode = Node<CoupleNodeData, "coupleNode">
@@ -50,6 +52,8 @@ export interface TrunkEdgeData extends Record<string, unknown> {
   childNodeIds: string[]
   /** Parent couple node ID */
   parentNodeId: string
+  /** Precomputed SVG path from edgeRouter; if absent, PersonEdge falls back to its own bezier. */
+  path?: string
 }
 
 export type TreeEdge = Edge<TrunkEdgeData>
@@ -400,11 +404,12 @@ function computeRawGenerations(
 
 // --- Family-Unit Layout Algorithm ---
 
-interface UnitPosition {
-  unitId: string
+export interface UnitPosition {
+  unitId?: string  // legacy field, kept for backwards compat
   x: number
   y: number
   width: number
+  compact?: boolean   // NEW: layout flagged for compact rendering
 }
 
 /**
@@ -647,6 +652,7 @@ export function buildReactFlowNodes(
         primaryIsFocused: false,
         spouseIsFocused: false,
         spouseGenOffset: unit.spouseGenOffset,
+        compact: pos.compact ?? false,
       },
       style: {
         width: pos.width,
