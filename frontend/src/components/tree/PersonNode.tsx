@@ -9,6 +9,7 @@ import type { TreeNodeData } from "./FamilyTreeCanvas"
 type PersonNodeData = TreeNodeData & {
   isDirectLine?: boolean
   isFocused?: boolean
+  compact?: boolean
 }
 
 function formatDateRange(
@@ -26,6 +27,11 @@ function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
 }
 
+function compactName(firstName: string, lastName: string): string {
+  const initial = firstName.trim().charAt(0)
+  return initial ? `${initial}. ${lastName}` : lastName
+}
+
 function PersonNodeComponent({ data, id }: NodeProps) {
   const nodeData = data as unknown as PersonNodeData
   const focusedPersonId = useTreeStore((s) => s.focusedPersonId)
@@ -34,8 +40,10 @@ function PersonNodeComponent({ data, id }: NodeProps) {
   const isFocused = focusedPersonId === id
   const isDirectLine = nodeData.isDirectLine ?? false
   const isCurrentUser = linkedPersonId === id
+  const compact = nodeData.compact ?? false
 
   const fullName = `${nodeData.first_name} ${nodeData.last_name}`
+  const displayName = compact ? compactName(nodeData.first_name, nodeData.last_name) : fullName
   const dateStr = formatDateRange(
     nodeData.birth_date,
     nodeData.death_date,
@@ -144,10 +152,11 @@ function PersonNodeComponent({ data, id }: NodeProps) {
       {/* Photo — contained inside card */}
       <div
         className={cn(
-          "bg-white dark:bg-dark-card rounded-xl border shadow-sm dark:shadow-none py-2 flex items-center gap-3 min-w-[220px]",
+          "bg-white dark:bg-dark-card rounded-xl border shadow-sm dark:shadow-none flex items-center",
+          compact ? "py-1 gap-2 px-2" : "py-2 gap-3 px-3",
+          !compact && "min-w-[220px]",
           "transition-all duration-200",
           "group-hover:scale-[1.03] group-hover:shadow-md dark:group-hover:shadow-black/20 group-hover:border-sage-300 dark:group-hover:border-dark-text-muted/30",
-          "px-3",
           isDirectLine && !isCurrentUser
             ? "border-sage-200 dark:border-dark-border border-l-4 border-l-primary"
             : isCurrentUser
@@ -162,12 +171,16 @@ function PersonNodeComponent({ data, id }: NodeProps) {
             <img
               src={nodeData.profile_photo_url!}
               alt={fullName}
-              className="w-10 h-10 rounded-full object-cover border border-sage-200 dark:border-dark-border"
+              className={cn(
+                "rounded-full object-cover border border-sage-200 dark:border-dark-border",
+                compact ? "w-6 h-6" : "w-10 h-10",
+              )}
             />
           ) : (
             <div
               className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold",
+                "rounded-full flex items-center justify-center font-bold",
+                compact ? "w-6 h-6 text-[9px]" : "w-10 h-10 text-sm",
                 nodeData.gender === "female"
                   ? "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300"
                   : nodeData.gender === "male"
@@ -180,15 +193,23 @@ function PersonNodeComponent({ data, id }: NodeProps) {
           )}
           {/* Living indicator */}
           {nodeData.is_living && (
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full border-2 border-white dark:border-dark-card" />
+            <div className={cn(
+              "absolute bg-primary rounded-full border-white dark:border-dark-card",
+              compact
+                ? "-bottom-0.5 -right-0.5 w-1.5 h-1.5 border"
+                : "-bottom-0.5 -right-0.5 w-3 h-3 border-2",
+            )} />
           )}
         </div>
 
         {/* Text */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <p className="font-bold text-sm text-earth-900 dark:text-dark-text truncate">
-              {fullName}
+            <p className={cn(
+              "font-bold truncate text-earth-900 dark:text-dark-text",
+              compact ? "text-[10px]" : "text-sm",
+            )}>
+              {displayName}
             </p>
             {isCurrentUser && (
               <span className="bg-sage-800 text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-px rounded-full flex-shrink-0">

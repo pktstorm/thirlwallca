@@ -65,30 +65,44 @@ function BirdEyeView({ data }: { data: CoupleNodeData }) {
   )
 }
 
+function compactName(firstName: string, lastName: string): string {
+  const initial = firstName.trim().charAt(0)
+  return initial ? `${initial}. ${lastName}` : lastName
+}
+
 // --- Overview View (zoom 0.4-0.8) ---
-function OverviewPill({ person, isDirectLine, isFocused, isCurrentUser }: {
+function OverviewPill({ person, isDirectLine, isFocused, isCurrentUser, compact }: {
   person: TreeNodeData
   isDirectLine: boolean
   isFocused: boolean
   isCurrentUser: boolean
+  compact: boolean
 }) {
   const dateStr = formatDateRange(person.birth_date, person.death_date, person.is_living)
+  const displayName = compact
+    ? compactName(person.first_name, person.last_name)
+    : `${person.first_name} ${person.last_name}`
 
   return (
     <div className={cn(
       "flex items-center gap-1.5 px-2 py-1 min-w-0",
       isFocused && "font-bold",
     )}>
-      <div className={cn("w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold flex-shrink-0", genderBg(person.gender))}>
+      <div className={cn(
+        "rounded-full flex items-center justify-center font-bold flex-shrink-0",
+        compact ? "w-4 h-4 text-[6px]" : "w-5 h-5 text-[8px]",
+        genderBg(person.gender),
+      )}>
         {getInitials(person.first_name, person.last_name)}
       </div>
       <div className="min-w-0 flex-1">
         <p className={cn(
-          "text-[10px] leading-tight truncate",
+          "leading-tight truncate",
+          compact ? "text-[9px]" : "text-[10px]",
           isDirectLine ? "text-earth-900 dark:text-dark-text font-semibold" : "text-sage-400 dark:text-dark-text-muted",
           isCurrentUser && "text-sage-800 dark:text-sage-300",
         )}>
-          {person.first_name} {person.last_name}
+          {displayName}
         </p>
         <p className="text-[8px] text-sage-300 dark:text-dark-text-muted/60 leading-tight">{dateStr}</p>
       </div>
@@ -101,6 +115,7 @@ function OverviewView({ data }: { data: CoupleNodeData }) {
   const linkedPersonId = useAuthStore((s) => s.user?.linkedPersonId)
   const isDirectLine = data.primaryIsDirectLine || data.spouseIsDirectLine
   const isFocused = data.primaryIsFocused || data.spouseIsFocused
+  const compact = data.compact ?? false
 
   return (
     <div className={cn(
@@ -117,6 +132,7 @@ function OverviewView({ data }: { data: CoupleNodeData }) {
         isDirectLine={data.primaryIsDirectLine ?? false}
         isFocused={focusedPersonId === data.primaryId}
         isCurrentUser={linkedPersonId === data.primaryId}
+        compact={compact}
       />
       {data.spouse && (() => {
         const offset = data.spouseGenOffset ?? 0
@@ -132,6 +148,7 @@ function OverviewView({ data }: { data: CoupleNodeData }) {
                 isDirectLine={data.spouseIsDirectLine ?? false}
                 isFocused={focusedPersonId === data.spouseId}
                 isCurrentUser={linkedPersonId === data.spouseId}
+                compact={compact}
               />
               {offset !== 0 && (
                 <div
@@ -157,18 +174,23 @@ function OverviewView({ data }: { data: CoupleNodeData }) {
 }
 
 // --- Detail View (zoom > 0.8) ---
-function DetailPerson({ person, isDirectLine, isFocused, isCurrentUser }: {
+function DetailPerson({ person, isDirectLine, isFocused, isCurrentUser, compact }: {
   person: TreeNodeData
   isDirectLine: boolean
   isFocused: boolean
   isCurrentUser: boolean
+  compact: boolean
 }) {
   const dateStr = formatDateRange(person.birth_date, person.death_date, person.is_living)
   const initials = getInitials(person.first_name, person.last_name)
+  const displayName = compact
+    ? compactName(person.first_name, person.last_name)
+    : `${person.first_name} ${person.last_name}`
 
   return (
     <div className={cn(
-      "flex items-center gap-2.5 px-3 py-2 min-w-0 flex-1 rounded-lg transition-colors duration-150",
+      "flex items-center min-w-0 flex-1 rounded-lg transition-colors duration-150",
+      compact ? "gap-1.5 px-2 py-1" : "gap-2.5 px-3 py-2",
       isFocused && "bg-primary/5",
     )}>
       {/* Avatar */}
@@ -178,7 +200,8 @@ function DetailPerson({ person, isDirectLine, isFocused, isCurrentUser }: {
             src={person.profile_photo_url}
             alt={`${person.first_name} ${person.last_name}`}
             className={cn(
-              "w-10 h-10 rounded-full object-cover border",
+              "rounded-full object-cover border",
+              compact ? "w-6 h-6" : "w-10 h-10",
               isFocused
                 ? "border-primary ring-2 ring-primary/30"
                 : isDirectLine
@@ -188,7 +211,8 @@ function DetailPerson({ person, isDirectLine, isFocused, isCurrentUser }: {
           />
         ) : (
           <div className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold",
+            "rounded-full flex items-center justify-center font-bold",
+            compact ? "w-6 h-6 text-[9px]" : "w-10 h-10 text-sm",
             genderBg(person.gender),
             isFocused && "ring-2 ring-primary/30",
             isDirectLine && !isFocused && "ring-1 ring-primary/20",
@@ -197,7 +221,12 @@ function DetailPerson({ person, isDirectLine, isFocused, isCurrentUser }: {
           </div>
         )}
         {person.is_living && (
-          <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-primary rounded-full border-[1.5px] border-white dark:border-dark-card" />
+          <div className={cn(
+            "absolute bg-primary rounded-full border-white dark:border-dark-card",
+            compact
+              ? "-bottom-0.5 -right-0.5 w-1.5 h-1.5 border"
+              : "-bottom-0.5 -right-0.5 w-2.5 h-2.5 border-[1.5px]",
+          )} />
         )}
       </div>
 
@@ -205,7 +234,8 @@ function DetailPerson({ person, isDirectLine, isFocused, isCurrentUser }: {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1">
           <p className={cn(
-            "text-xs leading-tight truncate",
+            "leading-tight truncate",
+            compact ? "text-[10px]" : "text-xs",
             isFocused
               ? "font-bold text-earth-900 dark:text-dark-text"
               : isDirectLine
@@ -213,7 +243,7 @@ function DetailPerson({ person, isDirectLine, isFocused, isCurrentUser }: {
                 : "font-medium text-sage-400 dark:text-dark-text-muted",
             isCurrentUser && "text-sage-800 dark:text-sage-300",
           )}>
-            {person.first_name} {person.last_name}
+            {displayName}
           </p>
           {isCurrentUser && (
             <span className="bg-sage-800 text-white text-[7px] font-bold uppercase tracking-wider px-1 py-px rounded-full flex-shrink-0">
@@ -237,6 +267,7 @@ function DetailView({ data }: { data: CoupleNodeData }) {
   const linkedPersonId = useAuthStore((s) => s.user?.linkedPersonId)
   const isDirectLine = data.primaryIsDirectLine || data.spouseIsDirectLine
   const isFocused = data.primaryIsFocused || data.spouseIsFocused
+  const compact = data.compact ?? false
 
   return (
     <div className={cn(
@@ -254,6 +285,7 @@ function DetailView({ data }: { data: CoupleNodeData }) {
         isDirectLine={data.primaryIsDirectLine ?? false}
         isFocused={focusedPersonId === data.primaryId}
         isCurrentUser={linkedPersonId === data.primaryId}
+        compact={compact}
       />
       {data.spouse && (() => {
         const offset = data.spouseGenOffset ?? 0
@@ -273,6 +305,7 @@ function DetailView({ data }: { data: CoupleNodeData }) {
                 isDirectLine={data.spouseIsDirectLine ?? false}
                 isFocused={focusedPersonId === data.spouseId}
                 isCurrentUser={linkedPersonId === data.spouseId}
+                compact={compact}
               />
               {offset !== 0 && (
                 <div
