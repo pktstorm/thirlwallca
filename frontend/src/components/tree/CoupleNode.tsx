@@ -136,6 +136,20 @@ function OverviewView({ data }: { data: CoupleNodeData }) {
       />
       {data.spouse && (() => {
         const offset = data.spouseGenOffset ?? 0
+        if (offset === 0) {
+          return (
+            <>
+              <div className="w-px h-4 bg-sage-200 dark:bg-dark-border flex-shrink-0" />
+              <OverviewPill
+                person={data.spouse}
+                isDirectLine={data.spouseIsDirectLine ?? false}
+                isFocused={focusedPersonId === data.spouseId}
+                isCurrentUser={linkedPersonId === data.spouseId}
+                compact={compact}
+              />
+            </>
+          )
+        }
         return (
           <>
             <div className="w-px h-4 bg-sage-200 dark:bg-dark-border flex-shrink-0" />
@@ -150,19 +164,17 @@ function OverviewView({ data }: { data: CoupleNodeData }) {
                 isCurrentUser={linkedPersonId === data.spouseId}
                 compact={compact}
               />
-              {offset !== 0 && (
-                <div
-                  className="absolute -top-2 -right-2 z-10 flex items-center gap-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-[9px] font-semibold px-1 py-px rounded-full border border-amber-200 dark:border-amber-800 shadow-sm"
-                  title={
-                    offset > 0
-                      ? `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} younger`
-                      : `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} older`
-                  }
-                >
-                  {offset > 0 ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronUp className="w-2.5 h-2.5" />}
-                  <span>{offset > 0 ? `+${offset}G` : `${offset}G`}</span>
-                </div>
-              )}
+              <div
+                className="absolute -top-2 -right-2 z-10 flex items-center gap-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-[9px] font-semibold px-1 py-px rounded-full border border-amber-200 dark:border-amber-800 shadow-sm"
+                title={
+                  offset > 0
+                    ? `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} younger`
+                    : `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} older`
+                }
+              >
+                {offset > 0 ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronUp className="w-2.5 h-2.5" />}
+                <span>{offset > 0 ? `+${offset}G` : `${offset}G`}</span>
+              </div>
             </div>
           </>
         )
@@ -289,6 +301,24 @@ function DetailView({ data }: { data: CoupleNodeData }) {
       />
       {data.spouse && (() => {
         const offset = data.spouseGenOffset ?? 0
+        if (offset === 0) {
+          return (
+            <>
+              {/* Marriage separator: double line */}
+              <div className="flex flex-col items-center justify-center gap-[2px] flex-shrink-0 px-0.5">
+                <div className="w-[2px] h-4 bg-sage-300 dark:bg-dark-border rounded-full" />
+                <div className="w-[2px] h-4 bg-sage-300 dark:bg-dark-border rounded-full" />
+              </div>
+              <DetailPerson
+                person={data.spouse}
+                isDirectLine={data.spouseIsDirectLine ?? false}
+                isFocused={focusedPersonId === data.spouseId}
+                isCurrentUser={linkedPersonId === data.spouseId}
+                compact={compact}
+              />
+            </>
+          )
+        }
         return (
           <>
             {/* Marriage separator: double line */}
@@ -307,19 +337,17 @@ function DetailView({ data }: { data: CoupleNodeData }) {
                 isCurrentUser={linkedPersonId === data.spouseId}
                 compact={compact}
               />
-              {offset !== 0 && (
-                <div
-                  className="absolute -top-2 -right-2 z-10 flex items-center gap-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-[9px] font-semibold px-1 py-px rounded-full border border-amber-200 dark:border-amber-800 shadow-sm"
-                  title={
-                    offset > 0
-                      ? `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} younger`
-                      : `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} older`
-                  }
-                >
-                  {offset > 0 ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronUp className="w-2.5 h-2.5" />}
-                  <span>{offset > 0 ? `+${offset}G` : `${offset}G`}</span>
-                </div>
-              )}
+              <div
+                className="absolute -top-2 -right-2 z-10 flex items-center gap-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-[9px] font-semibold px-1 py-px rounded-full border border-amber-200 dark:border-amber-800 shadow-sm"
+                title={
+                  offset > 0
+                    ? `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} younger`
+                    : `Spouse is ${Math.abs(offset)} generation${Math.abs(offset) > 1 ? "s" : ""} older`
+                }
+              >
+                {offset > 0 ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronUp className="w-2.5 h-2.5" />}
+                <span>{offset > 0 ? `+${offset}G` : `${offset}G`}</span>
+              </div>
             </div>
           </>
         )

@@ -214,7 +214,7 @@ function computeLayout(
       isDirectLine: e.data?.isDirectLine,
       childNodeIds: e.data?.childNodeIds ?? [],
       parentNodeId: e.data?.parentNodeId ?? "",
-      path: routedPaths.get(e.id) ?? undefined,
+      path: routedPaths.get(e.id) || undefined,
     },
   }))
 
@@ -251,6 +251,7 @@ function FamilyTreeCanvasInner({
   const [units, setUnits] = useState<FamilyUnit[]>([])
   const paneClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const skipNextFitView = useRef(false)
+  const didInitialFitView = useRef(false)
 
   // --- Compute visibility sets ---
 
@@ -297,6 +298,7 @@ function FamilyTreeCanvasInner({
     if (apiNodes.length === 0) return
 
     setLayoutReady(false)
+    didInitialFitView.current = false
 
     const result = computeLayout(apiNodes, apiEdges, {
       focusPersonId: focusPersonId ?? null,
@@ -479,8 +481,10 @@ function FamilyTreeCanvasInner({
   // Fit view once layout is ready — center on focusPersonId if provided
   useEffect(() => {
     if (!layoutReady || nodes.length === 0) return
+    if (didInitialFitView.current) return
 
     const timeout = setTimeout(() => {
+      didInitialFitView.current = true
       if (focusPersonId) {
         const unitId = personToUnit.get(focusPersonId)
         if (unitId) {

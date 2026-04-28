@@ -54,6 +54,11 @@ function routeOne(edge: EdgeRouteInput, obstacles: ObstacleBox[]): string {
   const { source, target } = edge
   if (source.x === target.x && source.y === target.y) return ""
 
+  // Defensive: if source and target are too close vertically to draw a sensible orthogonal path,
+  // return empty path so PersonEdge falls back to React Flow's source/target coords + its built-in bezier.
+  const verticalSpan = target.y - source.y
+  if (Math.abs(verticalSpan) < 16) return ""
+
   // 1. Straight vertical?
   if (Math.abs(source.x - target.x) < 4) {
     return `M ${source.x} ${source.y} V ${target.y}`
