@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
-import { computeRanks, expandVirtualNodes } from "./layoutSugiyama"
+import { computeRanks, expandVirtualNodes, layoutByLanes } from "./layoutSugiyama"
 import type { FamilyUnit } from "./layoutUtils"
+import type { BranchSide } from "./branchSide"
 
 function unit(id: string, primaryId: string, spouseId: string | null, childIds: string[]): FamilyUnit {
   return { id, primaryId, spouseId, childIds, generation: 0, spouseGenOffset: 0 }
@@ -78,5 +79,82 @@ describe("expandVirtualNodes", () => {
     const ranks = new Map<string, number>([["u1", 0], ["u2", 1]])
     const result = expandVirtualNodes(units, personToUnit, ranks)
     expect(result.virtualUnits).toHaveLength(0)
+  })
+})
+
+describe("layoutByLanes", () => {
+  it("places all units in the same rank at the same Y", () => {
+    const units = [
+      unit("u1", "p1", null, ["p2", "p3"]),
+      unit("u2", "p2", null, []),
+      unit("u3", "p3", null, []),
+    ]
+    const personToUnit = new Map([["p1", "u1"], ["p2", "u2"], ["p3", "u3"]])
+    const branchSides = new Map<string, BranchSide>([
+      ["p1", "neutral"], ["p2", "neutral"], ["p3", "neutral"],
+    ])
+    const result = layoutByLanes(units, personToUnit, { branchSides, useLanes: false })
+    expect(result.positions.get("u2")?.y).toBe(result.positions.get("u3")?.y)
+  })
+
+  it("respects compression tier for 8 siblings (tight gap)", () => {
+    const childIds = Array.from({ length: 8 }, (_, i) => `c${i}`)
+    const units: FamilyUnit[] = [
+      { id: "u_parent", primaryId: "parent", spouseId: null, childIds, generation: 0, spouseGenOffset: 0 },
+      ...childIds.map((c) => ({ id: `u_${c}`, primaryId: c, spouseId: null, childIds: [], generation: 0, spouseGenOffset: 0 })),
+    ]
+    const personToUnit = new Map([["parent", "u_parent"], ...childIds.map((c) => [c, `u_${c}`] as [string, string])])
+    const branchSides = new Map<string, BranchSide>(
+      [...personToUnit.keys()].map((k) => [k, "neutral" as BranchSide])
+    )
+    const result = layoutByLanes(units, personToUnit, { branchSides, useLanes: false })
+    // Verify all 8 children are at the same Y.
+    const ys = childIds.map((c) => result.positions.get(`u_${c}`)?.y)
+    expect(new Set(ys).size).toBe(1)
+    // Verify siblings are flagged as compact = false (count is 7-11, so tight gap but not compact).
+    const compactFlags = childIds.map((c) => result.positions.get(`u_${c}`)?.compact)
+    expect(compactFlags.every((f) => f === false)).toBe(true)
+  })
+
+  it("flags compact tile for 12+ siblings", () => {
+    const childIds = Array.from({ length: 13 }, (_, i) => `c${i}`)
+    const units: FamilyUnit[] = [
+      { id: "u_parent", primaryId: "parent", spouseId: null, childIds, generation: 0, spouseGenOffset: 0 },
+      ...childIds.map((c) => ({ id: `u_${c}`, primaryId: c, spouseId: null, childIds: [], generation: 0, spouseGenOffset: 0 })),
+    ]
+    const personToUnit = new Map([["parent", "u_parent"], ...childIds.map((c) => [c, `u_${c}`] as [string, string])])
+    const branchSides = new Map<string, BranchSide>(
+      [...personToUnit.keys()].map((k) => [k, "neutral" as BranchSide])
+    )
+    const result = layoutByLanes(units, personToUnit, { branchSides, useLanes: false })
+    const compactFlags = childIds.map((c) => result.positions.get(`u_${c}`)?.compact)
+    expect(compactFlags.every((f) => f === true)).toBe(true)
+  })
+
+  it("with lanes enabled, paternal units have x < 0 and maternal have x > 0", () => {
+    // focus + paternal grandfather + paternal grandmother + maternal grandfather + maternal grandmother + dad + mom
+    const units: FamilyUnit[] = [
+      { id: "u_pg", primaryId: "pgf", spouseId: "pgm", childIds: ["dad"], generation: 0, spouseGenOffset: 0 },
+      { id: "u_mg", primaryId: "mgf", spouseId: "mgm", childIds: ["mom"], generation: 0, spouseGenOffset: 0 },
+      { id: "u_p",  primaryId: "dad", spouseId: "mom", childIds: ["focus"], generation: 1, spouseGenOffset: 0 },
+      { id: "u_f",  primaryId: "focus", spouseId: null, childIds: [], generation: 2, spouseGenOffset: 0 },
+    ]
+    const personToUnit = new Map([
+      ["pgf", "u_pg"], ["pgm", "u_pg"],
+      ["mgf", "u_mg"], ["mgm", "u_mg"],
+      ["dad", "u_p"], ["mom", "u_p"],
+      ["focus", "u_f"],
+    ])
+    const branchSides = new Map<string, BranchSide>([
+      ["pgf", "paternal"], ["pgm", "paternal"],
+      ["mgf", "maternal"], ["mgm", "maternal"],
+      ["dad", "paternal"], ["mom", "maternal"],
+      ["focus", "self"],
+    ])
+    const result = layoutByLanes(units, personToUnit, { branchSides, useLanes: true })
+    expect(result.positions.get("u_pg")!.x).toBeLessThan(0)
+    expect(result.positions.get("u_mg")!.x).toBeGreaterThan(0)
+    // Focus is at center (within the lane center column).
+    expect(Math.abs(result.positions.get("u_f")!.x)).toBeLessThan(100)
   })
 })
