@@ -115,29 +115,19 @@ export function buildFamilyUnits(
   // Compute generations using union-find for spouse contraction + longest path
   const generationMap = computeGenerations(nodes, edges)
 
-  // Compute individual (non-contracted) generations for spouse offset calculation.
-  // This uses only parent-child edges so each person gets their own longest-path depth.
-  const rawGenMap = computeRawGenerations(nodes, edges)
-
-  // A person has recorded ancestry if they appear as the target of at least one parent_child edge.
-  // Without this check, spouses who married into the family (no parents recorded) all collapse
-  // to gen 0 in rawGenMap, producing a spurious negative offset against their partner whose
-  // ancestry is recorded — resulting in every married-in spouse displaying a "-3G" clamp value.
-  const hasRecordedAncestry = new Set<string>()
-  for (const e of edges) {
-    if (e.type === "parent_child") hasRecordedAncestry.add(e.target)
-  }
-
-  function computeSpouseGenOffset(primaryId: string, spouseId: string | null): number {
-    if (!spouseId) return 0
-    // Only compare generations when BOTH spouses have traced ancestry; otherwise the gen-0
-    // default for a married-in spouse produces a misleading offset.
-    if (!hasRecordedAncestry.has(primaryId) || !hasRecordedAncestry.has(spouseId)) return 0
-    const primaryGen = rawGenMap.get(primaryId)
-    const spouseGen = rawGenMap.get(spouseId)
-    if (primaryGen === undefined || spouseGen === undefined) return 0
-    const raw = spouseGen - primaryGen
-    return Math.max(-3, Math.min(3, raw))
+  // Spouse generation offset is currently disabled. The previous implementation used
+  // `computeRawGenerations` (longest-path depth from any root), but that depth measures "how
+  // deep is the recorded ancestry chain", not "what genealogical generation is this person."
+  // Two same-generation spouses can have wildly different chain depths simply because one
+  // side's ancestry has been traced further than the other. Result: nearly every couple where
+  // the two sides have asymmetrically-traced ancestry showed a misleading +/-3G clamp badge.
+  //
+  // The infrastructure (FamilyUnit.spouseGenOffset, CoupleNode rendering) stays in place. To
+  // re-enable, replace the body of computeSpouseGenOffset below with a metric grounded in a
+  // common reference (e.g. generations relative to the focus person, or relative to the
+  // deepest shared ancestor).
+  function computeSpouseGenOffset(_primaryId: string, _spouseId: string | null): number {
+    return 0
   }
 
   // Build family units by finding couples that share children
@@ -348,62 +338,6 @@ function computeGenerations(
   const gen = new Map<string, number>()
   for (const id of nodeIds) {
     gen.set(id, superGen.get(find(id)) ?? 0)
-  }
-
-  // Normalize to 0
-  let minG = Infinity
-  for (const g of gen.values()) if (g < minG) minG = g
-  if (minG > 0) for (const id of nodeIds) gen.set(id, gen.get(id)! - minG)
-
-  return gen
-}
-
-/**
- * Compute individual generation depths using only parent-child edges (no spouse contraction).
- * Each person gets the longest path from any root to themselves.
- * Used to calculate spouseGenOffset where per-person depth matters.
- */
-function computeRawGenerations(
-  nodes: ApiTreeNode[],
-  edges: ApiTreeEdge[],
-): Map<string, number> {
-  const nodeIds = nodes.map((n) => n.id)
-  const parentChildEdges = edges.filter((e) => e.type === "parent_child")
-
-  const children = new Map<string, Set<string>>()
-  const inDeg = new Map<string, number>()
-
-  for (const id of nodeIds) {
-    children.set(id, new Set())
-    inDeg.set(id, 0)
-  }
-
-  for (const e of parentChildEdges) {
-    if (!children.has(e.source) || !children.has(e.target)) continue
-    if (!children.get(e.source)!.has(e.target)) {
-      children.get(e.source)!.add(e.target)
-      inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1)
-    }
-  }
-
-  // Kahn's longest-path topological sort
-  const gen = new Map<string, number>()
-  const queue: string[] = []
-  for (const id of nodeIds) {
-    gen.set(id, 0)
-    if ((inDeg.get(id) ?? 0) === 0) queue.push(id)
-  }
-
-  let qi = 0
-  while (qi < queue.length) {
-    const cur = queue[qi++]!
-    const curG = gen.get(cur)!
-    for (const child of children.get(cur) ?? []) {
-      gen.set(child, Math.max(gen.get(child)!, curG + 1))
-      const rem = (inDeg.get(child) ?? 0) - 1
-      inDeg.set(child, rem)
-      if (rem === 0) queue.push(child)
-    }
   }
 
   // Normalize to 0

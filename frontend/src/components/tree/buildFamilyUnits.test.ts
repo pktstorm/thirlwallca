@@ -29,8 +29,13 @@ function spouseEdge(a: string, b: string): ApiTreeEdge {
 }
 
 describe("buildFamilyUnits — spouseGenOffset", () => {
-  it("computes 0 offset for same-generation couples", () => {
-    // gp has child p1; gp2 has child p2; p1 and p2 marry. Both are gen 1 (or the same number).
+  // The spouse-generation-offset visual feature is currently disabled. The previous
+  // implementation produced misleading badges whenever the two sides of a couple had
+  // asymmetrically-traced ancestry depths. Until the feature is rebuilt around a
+  // proper "generation relative to a common reference" metric, computeSpouseGenOffset
+  // always returns 0. These tests pin that contract so the disable doesn't regress.
+
+  it("returns 0 for same-generation couples", () => {
     const nodes = [person("gp"), person("gp2"), person("p1", "male"), person("p2", "female")]
     const edges = [pcEdge("gp", "p1"), pcEdge("gp2", "p2"), spouseEdge("p1", "p2")]
     const { units } = buildFamilyUnits(nodes, edges)
@@ -38,9 +43,8 @@ describe("buildFamilyUnits — spouseGenOffset", () => {
     expect(couple.spouseGenOffset).toBe(0)
   })
 
-  it("computes nonzero offset when spouse is in a different generation", () => {
-    // p1 is gen 1; p2 is gen 2 (child of someone whose other parent is also gen 1).
-    // Setup: gp -> p1; gp -> ancestorOfP2; ancestorOfP2 -> p2; p1 marries p2.
+  it("returns 0 even when raw ancestry depths differ", () => {
+    // p1 has 1 ancestor; p2 has 2 ancestors. Old impl would emit |offset| = 1.
     const nodes = [
       person("gp"), person("p1", "male"),
       person("ancestor"), person("p2", "female"),
@@ -54,30 +58,10 @@ describe("buildFamilyUnits — spouseGenOffset", () => {
     const { units } = buildFamilyUnits(nodes, edges)
     const couple = units.find((u) => u.spouseId !== null && (u.primaryId === "p1" || u.spouseId === "p1"))
     expect(couple).toBeDefined()
-    // Magnitude should be 1 (offset by exactly one generation).
-    expect(Math.abs(couple!.spouseGenOffset)).toBe(1)
+    expect(couple!.spouseGenOffset).toBe(0)
   })
 
-  it("clamps offset to ±3", () => {
-    // Build a deeply skewed couple.
-    // gp -> p1 directly (gen 1); chain a1->a2->a3->a4->a5->p2 (gen 5+).
-    const nodes = [
-      person("gp"), person("p1", "male"),
-      person("a1"), person("a2"), person("a3"), person("a4"), person("a5"),
-      person("p2", "female"),
-    ]
-    const edges = [
-      pcEdge("gp", "p1"),
-      pcEdge("a1", "a2"), pcEdge("a2", "a3"), pcEdge("a3", "a4"), pcEdge("a4", "a5"), pcEdge("a5", "p2"),
-      spouseEdge("p1", "p2"),
-    ]
-    const { units } = buildFamilyUnits(nodes, edges)
-    const couple = units.find((u) => (u.primaryId === "p1" && u.spouseId === "p2") || (u.primaryId === "p2" && u.spouseId === "p1"))
-    expect(couple).toBeDefined()
-    expect(Math.abs(couple!.spouseGenOffset)).toBeLessThanOrEqual(3)
-  })
-
-  it("solo units (no spouse) have spouseGenOffset = 0", () => {
+  it("returns 0 for solo units", () => {
     const nodes = [person("solo")]
     const edges: ApiTreeEdge[] = []
     const { units } = buildFamilyUnits(nodes, edges)
@@ -85,22 +69,9 @@ describe("buildFamilyUnits — spouseGenOffset", () => {
     expect(solo.spouseGenOffset).toBe(0)
   })
 
-  it("returns 0 when one spouse has no recorded ancestry (married-in)", () => {
-    // p1 has parents in the tree (gen 1); p2 has no parents recorded — they married in.
-    // Without the hasRecordedAncestry check, p2's gen would default to 0 and the offset would
-    // incorrectly compute as primaryGen - 0 = -1, displaying a spurious "-1G" badge for every
-    // married-in spouse.
+  it("returns 0 for married-in spouses (one side has no recorded ancestry)", () => {
     const nodes = [person("gp"), person("p1", "male"), person("p2", "female")]
     const edges = [pcEdge("gp", "p1"), spouseEdge("p1", "p2")]
-    const { units } = buildFamilyUnits(nodes, edges)
-    const couple = units.find((u) => u.spouseId !== null)!
-    expect(couple.spouseGenOffset).toBe(0)
-  })
-
-  it("returns 0 when both spouses lack recorded ancestry (root couple)", () => {
-    // Both p1 and p2 are roots (no parents in the data).
-    const nodes = [person("p1", "male"), person("p2", "female")]
-    const edges = [spouseEdge("p1", "p2")]
     const { units } = buildFamilyUnits(nodes, edges)
     const couple = units.find((u) => u.spouseId !== null)!
     expect(couple.spouseGenOffset).toBe(0)

@@ -218,6 +218,85 @@ function computeLayout(
     },
   }))
 
+  // Debug logging — enabled via `localStorage.debugTreeLayout = "true"`.
+  // Logs which units have parent edges, which don't, and (for each edge) source/target/path.
+  // Useful for diagnosing missing connecting lines.
+  try {
+    if (localStorage.getItem("debugTreeLayout") === "true") {
+      const unitsWithIncomingEdge = new Set<string>()
+      const unitsWithOutgoingEdge = new Set<string>()
+      for (const e of baseEdges) {
+        unitsWithOutgoingEdge.add(e.source)
+        unitsWithIncomingEdge.add(e.target)
+      }
+
+      const personLabel = (personId: string): string => {
+        const node = apiNodes.find((n) => n.id === personId)
+        if (!node) return personId
+        const fn = node.data.first_name ?? ""
+        const ln = node.data.last_name ?? ""
+        return `${fn} ${ln}`.trim() || personId
+      }
+      const unitLabel = (unitId: string): string => {
+        const u = units.find((x) => x.id === unitId)
+        if (!u) return unitId
+        const primary = personLabel(u.primaryId)
+        const spouse = u.spouseId ? ` & ${personLabel(u.spouseId)}` : ""
+        return `${primary}${spouse}`
+      }
+
+      // List units that have NO edges at all (neither incoming parent edge nor outgoing children).
+      const isolatedUnits = units.filter(
+        (u) => !unitsWithIncomingEdge.has(u.id) && !unitsWithOutgoingEdge.has(u.id),
+      )
+      // List units that have NO incoming parent edge but DO appear elsewhere (potential bug
+      // candidates — should we expect them to have a parent edge?).
+      const noParentEdge = units.filter((u) => !unitsWithIncomingEdge.has(u.id))
+
+      console.groupCollapsed(
+        `[tree-layout] computed ${units.length} units, ${baseEdges.length} edges; ` +
+          `${isolatedUnits.length} fully isolated, ${noParentEdge.length} without parent edge`,
+      )
+      console.log("Units fully isolated (no parent + no children):", isolatedUnits.map((u) => unitLabel(u.id)))
+      console.log("Units without a parent edge (root units; may include married-ins):", noParentEdge.map((u) => unitLabel(u.id)))
+
+      // For each edge, log source/target/path-presence.
+      console.groupCollapsed(`Edges (${baseEdges.length}):`)
+      for (const e of baseEdges) {
+        const path = routedPaths.get(e.id)
+        const sourcePos = unitPositions.get(e.source)
+        const targetPos = unitPositions.get(e.target)
+        const status = !sourcePos
+          ? "❌ source not in unitPositions"
+          : !targetPos
+            ? "❌ target not in unitPositions"
+            : !path
+              ? "✓ fallback to bezier (no router path)"
+              : "✓ router path"
+        console.log(
+          `  ${e.id}: ${unitLabel(e.source)} → ${unitLabel(e.target)} ${status}${
+            path ? ` path="${path.slice(0, 60)}…"` : ""
+          }`,
+        )
+      }
+      console.groupEnd()
+
+      // Check for units in personToUnit that aren't in the units array (data integrity).
+      const knownUnitIds = new Set(units.map((u) => u.id))
+      const orphanedRefs: string[] = []
+      for (const [personId, unitId] of personToUnit) {
+        if (!knownUnitIds.has(unitId)) orphanedRefs.push(`${personLabel(personId)} → ${unitId}`)
+      }
+      if (orphanedRefs.length > 0) {
+        console.warn("personToUnit references missing units:", orphanedRefs)
+      }
+
+      console.groupEnd()
+    }
+  } catch {
+    // localStorage unavailable — skip logging
+  }
+
   return { nodes, edges, generationMap, units, personToUnit }
 }
 
