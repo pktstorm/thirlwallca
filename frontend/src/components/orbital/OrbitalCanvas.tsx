@@ -90,12 +90,16 @@ export function OrbitalCanvas({ focusPersonId }: Props) {
   }, [])
 
   // Wheel zoom: pivots around the cursor position so the point under the cursor stays put.
-  const handleWheel = useCallback(
-    (e: React.WheelEvent<HTMLDivElement>) => {
+  // Attached via addEventListener with { passive: false } in the effect below (React's synthetic
+  // onWheel is passive by default, which makes preventDefault() a no-op and emits a console
+  // warning). Without preventDefault(), the page would also scroll when wheeling inside the
+  // canvas.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      const rect = containerRef.current?.getBoundingClientRect()
-      if (!rect) return
-      // Cursor position relative to the viewport center (where pan/zoom origin is).
+      const rect = el.getBoundingClientRect()
       const cursorX = e.clientX - rect.left - rect.width / 2
       const cursorY = e.clientY - rect.top - rect.height / 2
       setTransform((t) => {
@@ -112,9 +116,10 @@ export function OrbitalCanvas({ focusPersonId }: Props) {
           panY: cursorY - (cursorY - t.panY) * ratio,
         }
       })
-    },
-    [],
-  )
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [])
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -202,7 +207,6 @@ export function OrbitalCanvas({ focusPersonId }: Props) {
       className="relative w-full h-full overflow-hidden text-earth-900 dark:text-dark-text select-none"
       style={{ cursor: isDragging ? "grabbing" : "grab" }}
       onMouseDown={handleMouseDown}
-      onWheel={handleWheel}
     >
       {/* Pan/zoom wrapper — transforms both layers identically. */}
       <div
